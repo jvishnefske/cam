@@ -1103,6 +1103,614 @@ function drawConstraintOverlay() {
   ctx.restore();
 }
 
+// src/dataflow/graph.ts
+import {
+  dataflow_new,
+  dataflow_destroy,
+  dataflow_add_block,
+  dataflow_remove_block,
+  dataflow_connect,
+  dataflow_disconnect,
+  dataflow_advance,
+  dataflow_run,
+  dataflow_set_speed,
+  dataflow_snapshot,
+  dataflow_block_types
+} from "../../pkg/rustcam.js";
+var DataflowManager = class {
+  graphId;
+  running = false;
+  rafId = null;
+  lastTime = null;
+  /** UI positions for each block, keyed by block id. */
+  positions = /* @__PURE__ */ new Map();
+  /** Callback invoked after each tick with the latest snapshot. */
+  onTick = null;
+  constructor(dt = 0.01) {
+    this.graphId = dataflow_new(dt);
+  }
+  destroy() {
+    this.stop();
+    dataflow_destroy(this.graphId);
+  }
+  addBlock(blockType, config, x = 100, y = 100) {
+    const id = dataflow_add_block(this.graphId, blockType, JSON.stringify(config));
+    this.positions.set(id, { x, y });
+    return id;
+  }
+  removeBlock(blockId) {
+    dataflow_remove_block(this.graphId, blockId);
+    this.positions.delete(blockId);
+  }
+  connect(fromBlock, fromPort, toBlock, toPort) {
+    return dataflow_connect(this.graphId, fromBlock, fromPort, toBlock, toPort);
+  }
+  disconnect(channelId) {
+    dataflow_disconnect(this.graphId, channelId);
+  }
+  setSpeed(speed) {
+    dataflow_set_speed(this.graphId, speed);
+  }
+  snapshot() {
+    return JSON.parse(dataflow_snapshot(this.graphId));
+  }
+  /** Run N ticks instantly (non-realtime batch). */
+  runBatch(steps, dt) {
+    const json = dataflow_run(this.graphId, steps, dt);
+    return JSON.parse(json);
+  }
+  /** Start the realtime tick loop. */
+  start() {
+    if (this.running) return;
+    this.running = true;
+    this.lastTime = null;
+    this.tick();
+  }
+  /** Stop the realtime tick loop. */
+  stop() {
+    this.running = false;
+    if (this.rafId !== null) {
+      cancelAnimationFrame(this.rafId);
+      this.rafId = null;
+    }
+    this.lastTime = null;
+  }
+  tick = () => {
+    if (!this.running) return;
+    const now = performance.now() / 1e3;
+    if (this.lastTime !== null) {
+      const elapsed = Math.min(now - this.lastTime, 0.1);
+      const json = dataflow_advance(this.graphId, elapsed);
+      const snap = JSON.parse(json);
+      this.onTick?.(snap);
+    }
+    this.lastTime = now;
+    this.rafId = requestAnimationFrame(this.tick);
+  };
+  static blockTypes() {
+    return JSON.parse(dataflow_block_types());
+  }
+};
+
+// src/dataflow/editor.ts
+var NODE_W = 140;
+var NODE_H_BASE = 40;
+var PORT_R = 6;
+var PORT_SPACING = 20;
+var PORT_OFFSET_Y = 30;
+var COLORS = {
+  bg: "#0f1117",
+  node: "#1a1d27",
+  nodeBorder: "#2a2d3a",
+  nodeSelected: "#4f8cff",
+  text: "#e0e0e8",
+  textDim: "#8888a0",
+  portFloat: "#4f8cff",
+  portBytes: "#ff9800",
+  portText: "#55ff88",
+  portSeries: "#ff55aa",
+  portAny: "#aaa",
+  wire: "#4f8cff66",
+  wireActive: "#4f8cff"
+};
+function portColor(kind) {
+  switch (kind) {
+    case "Float":
+      return COLORS.portFloat;
+    case "Bytes":
+      return COLORS.portBytes;
+    case "Text":
+      return COLORS.portText;
+    case "Series":
+      return COLORS.portSeries;
+    default:
+      return COLORS.portAny;
+  }
+}
+function nodeHeight(block) {
+  const ports = Math.max(block.inputs.length, block.outputs.length);
+  return NODE_H_BASE + Math.max(ports, 1) * PORT_SPACING;
+}
+var DataflowEditor = class {
+  canvas;
+  ctx;
+  mgr;
+  snap = null;
+  selected = null;
+  drag = null;
+  wireDrag = null;
+  panX = 0;
+  panY = 0;
+  blockTypes = [];
+  /** Fires when block selection changes. */
+  onSelect = null;
+  constructor(canvas2, mgr2) {
+    this.canvas = canvas2;
+    this.ctx = canvas2.getContext("2d");
+    this.mgr = mgr2;
+    this.blockTypes = DataflowManager.blockTypes();
+    canvas2.addEventListener("mousedown", this.onMouseDown);
+    canvas2.addEventListener("mousemove", this.onMouseMove);
+    canvas2.addEventListener("mouseup", this.onMouseUp);
+    canvas2.addEventListener("dblclick", this.onDblClick);
+    canvas2.addEventListener("contextmenu", this.onContextMenu);
+    mgr2.onTick = (snap) => {
+      this.snap = snap;
+      this.draw();
+    };
+  }
+  resize() {
+    const rect = this.canvas.getBoundingClientRect();
+    if (rect.width < 1 || rect.height < 1) return;
+    const dpr = window.devicePixelRatio || 1;
+    this.canvas.width = rect.width * dpr;
+    this.canvas.height = rect.height * dpr;
+    this.draw();
+  }
+  updateSnapshot() {
+    this.snap = this.mgr.snapshot();
+    this.draw();
+  }
+  draw() {
+    const ctx = this.ctx;
+    const dpr = window.devicePixelRatio || 1;
+    const rect = this.canvas.getBoundingClientRect();
+    if (rect.width < 1) return;
+    ctx.save();
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, rect.width, rect.height);
+    ctx.fillStyle = COLORS.bg;
+    ctx.fillRect(0, 0, rect.width, rect.height);
+    if (!this.snap) {
+      ctx.restore();
+      return;
+    }
+    ctx.translate(this.panX, this.panY);
+    for (const ch of this.snap.channels) {
+      this.drawWire(ch);
+    }
+    if (this.wireDrag) {
+      ctx.strokeStyle = COLORS.wireActive;
+      ctx.lineWidth = 2;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.moveTo(this.wireDrag.fromX, this.wireDrag.fromY);
+      ctx.lineTo(this.wireDrag.mouseX - this.panX, this.wireDrag.mouseY - this.panY);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    for (const block of this.snap.blocks) {
+      this.drawNode(block);
+    }
+    ctx.restore();
+  }
+  drawNode(block) {
+    const ctx = this.ctx;
+    const pos = this.mgr.positions.get(block.id) ?? { x: 50, y: 50 };
+    const h = nodeHeight(block);
+    const isSelected = this.selected === block.id;
+    ctx.fillStyle = COLORS.node;
+    ctx.strokeStyle = isSelected ? COLORS.nodeSelected : COLORS.nodeBorder;
+    ctx.lineWidth = isSelected ? 2 : 1;
+    ctx.beginPath();
+    ctx.roundRect(pos.x, pos.y, NODE_W, h, 6);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = COLORS.text;
+    ctx.font = "12px -apple-system, sans-serif";
+    ctx.fillText(block.name, pos.x + 10, pos.y + 18);
+    ctx.fillStyle = COLORS.textDim;
+    ctx.font = "10px monospace";
+    ctx.fillText(block.block_type, pos.x + 10, pos.y + 30);
+    for (let i = 0; i < block.inputs.length; i++) {
+      const py = pos.y + PORT_OFFSET_Y + i * PORT_SPACING + PORT_SPACING / 2;
+      ctx.fillStyle = portColor(block.inputs[i].kind);
+      ctx.beginPath();
+      ctx.arc(pos.x, py, PORT_R, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = COLORS.textDim;
+      ctx.font = "10px monospace";
+      ctx.fillText(block.inputs[i].name, pos.x + PORT_R + 4, py + 3);
+    }
+    for (let i = 0; i < block.outputs.length; i++) {
+      const py = pos.y + PORT_OFFSET_Y + i * PORT_SPACING + PORT_SPACING / 2;
+      ctx.fillStyle = portColor(block.outputs[i].kind);
+      ctx.beginPath();
+      ctx.arc(pos.x + NODE_W, py, PORT_R, 0, Math.PI * 2);
+      ctx.fill();
+      const val = block.output_values[i];
+      let label = block.outputs[i].name;
+      if (val) {
+        if (val.type === "Float") label = val.data.toFixed(2);
+        else if (val.type === "Text") label = val.data.slice(0, 12);
+        else if (val.type === "Series") label = `[${val.data.length}]`;
+      }
+      ctx.fillStyle = COLORS.textDim;
+      ctx.font = "10px monospace";
+      const tw = ctx.measureText(label).width;
+      ctx.fillText(label, pos.x + NODE_W - PORT_R - 4 - tw, py + 3);
+    }
+  }
+  drawWire(ch) {
+    const ctx = this.ctx;
+    const fromBlock = this.snap.blocks.find((b) => b.id === ch.from_block[0]);
+    const toBlock = this.snap.blocks.find((b) => b.id === ch.to_block[0]);
+    if (!fromBlock || !toBlock) return;
+    const fromPos = this.mgr.positions.get(fromBlock.id) ?? { x: 0, y: 0 };
+    const toPos = this.mgr.positions.get(toBlock.id) ?? { x: 0, y: 0 };
+    const x1 = fromPos.x + NODE_W;
+    const y1 = fromPos.y + PORT_OFFSET_Y + ch.from_port * PORT_SPACING + PORT_SPACING / 2;
+    const x2 = toPos.x;
+    const y2 = toPos.y + PORT_OFFSET_Y + ch.to_port * PORT_SPACING + PORT_SPACING / 2;
+    const cpX = Math.abs(x2 - x1) * 0.5;
+    ctx.strokeStyle = COLORS.wireActive;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.bezierCurveTo(x1 + cpX, y1, x2 - cpX, y2, x2, y2);
+    ctx.stroke();
+  }
+  getPortAt(mx, my) {
+    if (!this.snap) return null;
+    for (const block of this.snap.blocks) {
+      const pos = this.mgr.positions.get(block.id) ?? { x: 0, y: 0 };
+      for (let i = 0; i < block.outputs.length; i++) {
+        const px = pos.x + NODE_W;
+        const py = pos.y + PORT_OFFSET_Y + i * PORT_SPACING + PORT_SPACING / 2;
+        if (Math.hypot(mx - px, my - py) < PORT_R + 4) {
+          return { blockId: block.id, portIndex: i, isOutput: true, px, py };
+        }
+      }
+      for (let i = 0; i < block.inputs.length; i++) {
+        const px = pos.x;
+        const py = pos.y + PORT_OFFSET_Y + i * PORT_SPACING + PORT_SPACING / 2;
+        if (Math.hypot(mx - px, my - py) < PORT_R + 4) {
+          return { blockId: block.id, portIndex: i, isOutput: false, px, py };
+        }
+      }
+    }
+    return null;
+  }
+  getNodeAt(mx, my) {
+    if (!this.snap) return null;
+    for (let i = this.snap.blocks.length - 1; i >= 0; i--) {
+      const block = this.snap.blocks[i];
+      const pos = this.mgr.positions.get(block.id) ?? { x: 0, y: 0 };
+      const h = nodeHeight(block);
+      if (mx >= pos.x && mx <= pos.x + NODE_W && my >= pos.y && my <= pos.y + h) {
+        return block.id;
+      }
+    }
+    return null;
+  }
+  canvasCoords(e) {
+    const rect = this.canvas.getBoundingClientRect();
+    return [e.clientX - rect.left - this.panX, e.clientY - rect.top - this.panY];
+  }
+  onMouseDown = (e) => {
+    const [mx, my] = this.canvasCoords(e);
+    const port = this.getPortAt(mx, my);
+    if (port) {
+      this.wireDrag = {
+        fromBlock: port.blockId,
+        fromPort: port.portIndex,
+        fromX: port.px,
+        fromY: port.py,
+        isOutput: port.isOutput,
+        mouseX: e.clientX - this.canvas.getBoundingClientRect().left,
+        mouseY: e.clientY - this.canvas.getBoundingClientRect().top
+      };
+      return;
+    }
+    const nodeId = this.getNodeAt(mx, my);
+    if (nodeId !== null) {
+      const pos = this.mgr.positions.get(nodeId) ?? { x: 0, y: 0 };
+      this.drag = {
+        type: "move-node",
+        blockId: nodeId,
+        offsetX: mx - pos.x,
+        offsetY: my - pos.y
+      };
+      this.selected = nodeId;
+      this.onSelect?.(nodeId, this.snap);
+      this.draw();
+      return;
+    }
+    this.selected = null;
+    this.onSelect?.(null, this.snap);
+    this.draw();
+  };
+  onMouseMove = (e) => {
+    if (this.drag) {
+      const [mx, my] = this.canvasCoords(e);
+      this.mgr.positions.set(this.drag.blockId, {
+        x: mx - this.drag.offsetX,
+        y: my - this.drag.offsetY
+      });
+      this.draw();
+    }
+    if (this.wireDrag) {
+      const rect = this.canvas.getBoundingClientRect();
+      this.wireDrag.mouseX = e.clientX - rect.left;
+      this.wireDrag.mouseY = e.clientY - rect.top;
+      this.draw();
+    }
+  };
+  onMouseUp = (e) => {
+    if (this.wireDrag) {
+      const [mx, my] = this.canvasCoords(e);
+      const port = this.getPortAt(mx, my);
+      if (port && port.isOutput !== this.wireDrag.isOutput) {
+        try {
+          if (this.wireDrag.isOutput) {
+            this.mgr.connect(this.wireDrag.fromBlock, this.wireDrag.fromPort, port.blockId, port.portIndex);
+          } else {
+            this.mgr.connect(port.blockId, port.portIndex, this.wireDrag.fromBlock, this.wireDrag.fromPort);
+          }
+          this.snap = this.mgr.snapshot();
+        } catch (err) {
+          console.warn("connect failed:", err);
+        }
+      }
+      this.wireDrag = null;
+      this.draw();
+    }
+    this.drag = null;
+  };
+  onDblClick = (e) => {
+    const [mx, my] = this.canvasCoords(e);
+    const nodeId = this.getNodeAt(mx, my);
+    if (nodeId === null) {
+      this.showPalette(mx, my);
+    }
+  };
+  onContextMenu = (e) => {
+    e.preventDefault();
+    const [mx, my] = this.canvasCoords(e);
+    const nodeId = this.getNodeAt(mx, my);
+    if (nodeId !== null) {
+      this.mgr.removeBlock(nodeId);
+      if (this.selected === nodeId) {
+        this.selected = null;
+        this.onSelect?.(null, this.snap);
+      }
+      this.snap = this.mgr.snapshot();
+      this.draw();
+    }
+  };
+  showPalette(x, y) {
+    document.getElementById("df-palette")?.remove();
+    const div = document.createElement("div");
+    div.id = "df-palette";
+    div.style.cssText = `
+      position: fixed; z-index: 100; background: #1a1d27; border: 1px solid #2a2d3a;
+      border-radius: 6px; padding: 4px 0; font-size: 13px; color: #e0e0e8;
+      max-height: 300px; overflow-y: auto; min-width: 160px;
+    `;
+    const rect = this.canvas.getBoundingClientRect();
+    div.style.left = `${rect.left + x + this.panX}px`;
+    div.style.top = `${rect.top + y + this.panY}px`;
+    let lastCat = "";
+    for (const bt of this.blockTypes) {
+      if (bt.category !== lastCat) {
+        lastCat = bt.category;
+        const header = document.createElement("div");
+        header.style.cssText = "padding: 4px 12px; font-size: 11px; color: #8888a0; text-transform: uppercase;";
+        header.textContent = bt.category;
+        div.appendChild(header);
+      }
+      const item = document.createElement("div");
+      item.style.cssText = "padding: 4px 12px; cursor: pointer;";
+      item.textContent = bt.name;
+      item.addEventListener("mouseenter", () => {
+        item.style.background = "#2a2d3a";
+      });
+      item.addEventListener("mouseleave", () => {
+        item.style.background = "transparent";
+      });
+      item.addEventListener("click", () => {
+        const defaultConfig = bt.block_type === "constant" ? { value: 1 } : bt.block_type === "gain" ? { op: "Gain", param1: 1, param2: 0 } : bt.block_type === "clamp" ? { op: "Clamp", param1: 0, param2: 100 } : bt.block_type === "plot" ? { max_samples: 500 } : bt.block_type === "udp_source" || bt.block_type === "udp_sink" ? { address: "127.0.0.1:9000" } : {};
+        this.mgr.addBlock(bt.block_type, defaultConfig, x, y);
+        this.snap = this.mgr.snapshot();
+        this.draw();
+        div.remove();
+      });
+      div.appendChild(item);
+    }
+    document.body.appendChild(div);
+    const dismiss = (ev) => {
+      if (!div.contains(ev.target)) {
+        div.remove();
+        document.removeEventListener("mousedown", dismiss);
+      }
+    };
+    setTimeout(() => document.addEventListener("mousedown", dismiss), 0);
+  }
+};
+
+// src/dataflow/plot.ts
+var PLOT_PAD = 30;
+var PLOT_BG = "#1a1d27";
+var PLOT_AXIS = "#2a2d3a";
+var PLOT_LINE = "#4f8cff";
+var PLOT_TEXT = "#8888a0";
+function drawPlot(canvas2, data, label = "Plot") {
+  const ctx = canvas2.getContext("2d");
+  if (!ctx) return;
+  const rect = canvas2.getBoundingClientRect();
+  if (rect.width < 1) return;
+  const dpr = window.devicePixelRatio || 1;
+  canvas2.width = rect.width * dpr;
+  canvas2.height = rect.height * dpr;
+  ctx.save();
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const w = rect.width;
+  const h = rect.height;
+  ctx.fillStyle = PLOT_BG;
+  ctx.fillRect(0, 0, w, h);
+  if (data.length < 2) {
+    ctx.fillStyle = PLOT_TEXT;
+    ctx.font = "12px monospace";
+    ctx.fillText("Waiting for data...", PLOT_PAD, h / 2);
+    ctx.restore();
+    return;
+  }
+  const plotW = w - PLOT_PAD * 2;
+  const plotH = h - PLOT_PAD * 2;
+  let min = data[0], max = data[0];
+  for (const v of data) {
+    if (v < min) min = v;
+    if (v > max) max = v;
+  }
+  if (max === min) {
+    max += 1;
+    min -= 1;
+  }
+  ctx.strokeStyle = PLOT_AXIS;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(PLOT_PAD, PLOT_PAD);
+  ctx.lineTo(PLOT_PAD, h - PLOT_PAD);
+  ctx.lineTo(w - PLOT_PAD, h - PLOT_PAD);
+  ctx.stroke();
+  ctx.fillStyle = PLOT_TEXT;
+  ctx.font = "10px monospace";
+  ctx.textAlign = "right";
+  ctx.fillText(max.toFixed(2), PLOT_PAD - 4, PLOT_PAD + 4);
+  ctx.fillText(min.toFixed(2), PLOT_PAD - 4, h - PLOT_PAD + 4);
+  ctx.textAlign = "left";
+  ctx.fillText(label, PLOT_PAD, PLOT_PAD - 8);
+  ctx.strokeStyle = PLOT_LINE;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  for (let i = 0; i < data.length; i++) {
+    const x = PLOT_PAD + i / (data.length - 1) * plotW;
+    const y = PLOT_PAD + plotH - (data[i] - min) / (max - min) * plotH;
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
+// src/dataflow/index.ts
+var mgr = null;
+var editor = null;
+function initDataflow() {
+  mgr = new DataflowManager(0.01);
+  const canvas2 = $canvas("dataflow-canvas");
+  editor = new DataflowEditor(canvas2, mgr);
+  editor.onSelect = (blockId, snap) => {
+    updateBlockInfo(blockId, snap);
+  };
+  $btn("df-play").addEventListener("click", () => {
+    if (!mgr) return;
+    if (mgr.running) {
+      mgr.stop();
+      $btn("df-play").textContent = "Play";
+    } else {
+      mgr.start();
+      $btn("df-play").textContent = "Pause";
+    }
+  });
+  $btn("df-reset").addEventListener("click", () => {
+    if (!mgr) return;
+    mgr.stop();
+    $btn("df-play").textContent = "Play";
+    mgr.destroy();
+    const dt = parseFloat($input("df-dt").value) || 0.01;
+    mgr = new DataflowManager(dt);
+    editor = new DataflowEditor(canvas2, mgr);
+    editor.onSelect = (blockId, snap) => updateBlockInfo(blockId, snap);
+    editor.resize();
+  });
+  $input("df-speed").addEventListener("input", () => {
+    if (!mgr) return;
+    mgr.setSpeed(parseFloat($input("df-speed").value) || 1);
+  });
+  $btn("df-batch").addEventListener("click", () => {
+    if (!mgr) return;
+    const steps = parseInt($input("df-batch-steps").value) || 100;
+    const dt = parseFloat($input("df-dt").value) || 0.01;
+    const snap = mgr.runBatch(steps, dt);
+    updatePlots(snap);
+    editor?.updateSnapshot();
+  });
+}
+function resizeDataflow() {
+  editor?.resize();
+}
+function activateDataflow() {
+  requestAnimationFrame(() => editor?.resize());
+}
+function updateBlockInfo(blockId, snap) {
+  const infoEl = $("df-block-info");
+  if (blockId === null || !snap) {
+    infoEl.innerHTML = '<span style="color:#8888a0">Select a block to view details</span>';
+    return;
+  }
+  const block = snap.blocks.find((b) => b.id === blockId);
+  if (!block) return;
+  let html = `<b>${block.name}</b> <span style="color:#8888a0">#${block.id}</span><br>`;
+  html += `<span style="color:#8888a0;font-size:11px">${block.block_type}</span><br>`;
+  if (block.output_values.length > 0) {
+    html += '<div style="margin-top:6px;font-size:12px">';
+    for (let i = 0; i < block.outputs.length; i++) {
+      const val = block.output_values[i];
+      html += `<div>${block.outputs[i].name}: ${formatValue(val)}</div>`;
+    }
+    html += "</div>";
+  }
+  infoEl.innerHTML = html;
+  updatePlots(snap);
+}
+function formatValue(val) {
+  if (!val) return '<span style="color:#8888a0">\u2014</span>';
+  switch (val.type) {
+    case "Float":
+      return val.data.toFixed(4);
+    case "Text":
+      return `"${val.data.slice(0, 30)}"`;
+    case "Bytes":
+      return `[${val.data.length} bytes]`;
+    case "Series":
+      return `[${val.data.length} samples]`;
+  }
+}
+function updatePlots(snap) {
+  const plotCanvas = document.getElementById("df-plot-canvas");
+  if (!plotCanvas) return;
+  for (const block of snap.blocks) {
+    if (block.block_type === "plot") {
+      const val = block.output_values[0];
+      if (val && val.type === "Series") {
+        drawPlot(plotCanvas, val.data, `Plot #${block.id}`);
+        return;
+      }
+    }
+  }
+}
+
 // src/main.ts
 setResizeSim(resizeSim);
 setLoadSim(loadSim);
@@ -1111,15 +1719,20 @@ function setMode(mode) {
   document.querySelectorAll("#mode-switcher button").forEach((b) => b.classList.toggle("active", b.dataset.mode === mode));
   $("cam-sidebar-content").style.display = mode === "cam" ? "block" : "none";
   $("sketch-sidebar-content").style.display = mode === "sketch" ? "block" : "none";
+  $("dataflow-sidebar-content").style.display = mode === "dataflow" ? "block" : "none";
   $canvas("preview-canvas").style.display = mode === "cam" ? "block" : "none";
   $("preview-header").style.display = mode === "cam" ? "block" : "none";
   $("sketch-canvas-wrap").style.display = mode === "sketch" ? "flex" : "none";
-  document.querySelector(".app").classList.toggle("sketch-mode", mode === "sketch");
+  const app = document.querySelector(".app");
+  app.classList.toggle("sketch-mode", mode === "sketch");
+  app.classList.toggle("dataflow-mode", mode === "dataflow");
   if (mode === "sketch") {
     requestAnimationFrame(() => {
       resizeSketchCanvas();
       redrawSketch2();
     });
+  } else if (mode === "dataflow") {
+    activateDataflow();
   } else {
     tryPreview();
   }
@@ -1136,6 +1749,7 @@ window.addEventListener("resize", () => {
     resizeSketchCanvas();
     redrawSketch2();
   }
+  resizeDataflow();
 });
 new ResizeObserver(() => {
   if (getCurrentMode() === "sketch") {
@@ -1162,6 +1776,7 @@ async function boot() {
   try {
     await init();
     setWasmReady(true);
+    initDataflow();
     $("status").textContent = "WASM loaded \u2014 drop a file to begin.";
     $("status").className = "status ok";
   } catch (e) {
