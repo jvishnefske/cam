@@ -1116,7 +1116,7 @@ import {
   dataflow_set_speed,
   dataflow_snapshot,
   dataflow_block_types
-} from "../../pkg/rustcam.js";
+} from "../pkg/rustcam.js";
 var DataflowManager = class {
   graphId;
   running = false;
