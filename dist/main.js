@@ -30,6 +30,84 @@ import {
   preview_stl,
   preview_svg
 } from "../pkg/rustcam.js";
+
+// src/theme.ts
+var theme = {
+  colors: {
+    bg: "#0f1117",
+    surface: "#1a1d27",
+    border: "#2a2d3a",
+    accent: "#4f8cff",
+    accentDim: "#2d5299",
+    text: "#e0e0e8",
+    textDim: "#8888a0",
+    danger: "#ff5555",
+    success: "#55ff88",
+    warning: "#ff9800",
+    white: "#ffffff",
+    // Port type colors (dataflow)
+    portFloat: "#4f8cff",
+    portBytes: "#ff9800",
+    portText: "#55ff88",
+    portSeries: "#ff55aa",
+    portAny: "#aaaaaa",
+    // Wire colors
+    wire: "#4f8cff66",
+    wireActive: "#4f8cff",
+    // Constraint status colors
+    cstFullyConstrained: "#4caf50",
+    cstOverConstrained: "#f44336",
+    cstUnderConstrained: "#ff9800",
+    cstPickHighlight: "#ffeb3b",
+    // Simulation colors
+    simMaterialRemoval: "rgba(255,80,80,0.35)",
+    simRapid: "rgba(255,255,100,0.25)",
+    simCutting: "rgba(79,140,255,0.6)",
+    simToolShadow: "rgba(0,0,0,0.3)",
+    simToolCutting: "rgba(255,80,80,0.7)",
+    simToolIdle: "rgba(100,200,100,0.5)",
+    simToolOutlineCutting: "#ff5555",
+    simToolOutlineIdle: "#55ff88",
+    simToolCenter: "#ffffff",
+    // CAM preview colors
+    camLaser: "rgba(255, 60, 40, 0.85)",
+    camZDefault: "#4f8cff",
+    // Hover state
+    btnSecondaryHover: "#3a3d4a",
+    // Drop zone hover
+    dropZoneHoverBg: "rgba(79,140,255,0.06)"
+  },
+  fonts: {
+    sans: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+    mono: "'Courier New', monospace"
+  },
+  spacing: {
+    sidebarWidth: 320,
+    headerHeight: 49,
+    pad: 16,
+    portRadius: 6,
+    portSpacing: 20,
+    portOffsetY: 30,
+    nodeWidth: 140,
+    nodeBaseHeight: 40
+  }
+};
+function portColor(kind) {
+  switch (kind) {
+    case "Float":
+      return theme.colors.portFloat;
+    case "Bytes":
+      return theme.colors.portBytes;
+    case "Text":
+      return theme.colors.portText;
+    case "Series":
+      return theme.colors.portSeries;
+    default:
+      return theme.colors.portAny;
+  }
+}
+
+// src/cam.ts
 var wasmReady = false;
 var fileData = null;
 var fileType = null;
@@ -62,8 +140,8 @@ var cncStrategies = ["contour", "pocket", "slice", "zigzag", "perimeter"];
 var laserStrategies = ["contour", "pocket", "perimeter", "laser_cut", "laser_engrave"];
 function updateToolTypeUI() {
   const toolType = toolTypeSelect.value;
-  effectiveDiameterRow.style.display = toolType === "face_mill" ? "block" : "none";
-  cornerRadiusRow.style.display = toolType === "ball_end" ? "block" : "none";
+  effectiveDiameterRow.classList.toggle("hidden", toolType !== "face_mill");
+  cornerRadiusRow.classList.toggle("hidden", toolType !== "ball_end");
   if (toolType === "ball_end") {
     const diameter = parseFloat($input("tool-diameter").value);
     $input("corner-radius").value = (diameter / 2).toFixed(2);
@@ -73,13 +151,13 @@ toolTypeSelect.addEventListener("change", updateToolTypeUI);
 $input("tool-diameter").addEventListener("change", updateToolTypeUI);
 function updateStrategyUI() {
   const strategy = strategySelect.value;
-  perimeterOptions.style.display = strategy === "perimeter" ? "block" : "none";
-  zigzagOptions.style.display = strategy === "zigzag" ? "block" : "none";
+  perimeterOptions.classList.toggle("hidden", strategy !== "perimeter");
+  zigzagOptions.classList.toggle("hidden", strategy !== "zigzag");
 }
 function updateMachineTypeUI() {
   const isLaser = machineTypeSelect.value === "laser_cutter";
-  cncParamsSection.style.display = isLaser ? "none" : "block";
-  laserParamsSection.style.display = isLaser ? "block" : "none";
+  cncParamsSection.classList.toggle("hidden", isLaser);
+  laserParamsSection.classList.toggle("hidden", !isLaser);
   const current = strategySelect.value;
   const allowed = isLaser ? laserStrategies : cncStrategies;
   for (const opt of Array.from(strategySelect.options)) {
@@ -148,7 +226,7 @@ function handleFile(file) {
     });
   } else {
     statusEl.textContent = "Unsupported file type: ." + ext;
-    statusEl.className = "status error";
+    statusEl.className = "text-xs mt-2 min-h-4 text-danger";
   }
 }
 function getConfig() {
@@ -251,13 +329,13 @@ function drawPreview(paths) {
   const ty = (y) => offY + (maxY - y) * scale;
   const isLaserPreview = machineTypeSelect.value === "laser_cutter";
   const zColor = (z) => {
-    if (isLaserPreview) return "rgba(255, 60, 40, 0.85)";
-    if (!has3D || z === void 0) return "#4f8cff";
+    if (isLaserPreview) return theme.colors.camLaser;
+    if (!has3D || z === void 0) return theme.colors.camZDefault;
     const t = (z - minZ) / zRange;
     const hue = 240 - t * 180;
     return `hsl(${hue}, 80%, 55%)`;
   };
-  ctx.strokeStyle = "#1a1d27";
+  ctx.strokeStyle = theme.colors.surface;
   ctx.lineWidth = 0.5;
   const gs = Math.pow(10, Math.floor(Math.log10(Math.max(w, h))));
   for (let x = Math.floor(minX / gs) * gs; x <= maxX; x += gs) {
@@ -285,7 +363,7 @@ function drawPreview(paths) {
         ctx.stroke();
       }
     } else {
-      ctx.strokeStyle = isLaserPreview ? "rgba(255, 60, 40, 0.85)" : "#4f8cff";
+      ctx.strokeStyle = isLaserPreview ? theme.colors.camLaser : theme.colors.camZDefault;
       ctx.beginPath();
       ctx.moveTo(tx(p[0][0]), ty(p[0][1]));
       for (let i = 1; i < p.length; i++) ctx.lineTo(tx(p[i][0]), ty(p[i][1]));
@@ -307,24 +385,24 @@ function initWorker() {
     if (msg.type === "progress") {
       const elapsed = ((performance.now() - genStartTime) / 1e3).toFixed(1);
       statusEl.textContent = `Generating... layer ${msg.completed} / ${msg.total}  (${elapsed}s)`;
-      statusEl.className = "status";
+      statusEl.className = "text-xs mt-2 min-h-4";
     } else if (msg.type === "done") {
       gcodeOut.value = msg.gcode;
       const elapsed = ((performance.now() - genStartTime) / 1e3).toFixed(1);
       statusEl.textContent = `Done \u2014 ${msg.gcode.split("\n").length} lines of G-code in ${elapsed}s.`;
-      statusEl.className = "status ok";
+      statusEl.className = "text-xs mt-2 min-h-4 text-success";
       generateBtn.disabled = false;
       tryPreview();
       loadSimFn();
     } else if (msg.type === "error") {
       statusEl.textContent = "Error: " + msg.error;
-      statusEl.className = "status error";
+      statusEl.className = "text-xs mt-2 min-h-4 text-danger";
       generateBtn.disabled = false;
     }
   };
   genWorker.onerror = (e) => {
     statusEl.textContent = "Worker error: " + e.message;
-    statusEl.className = "status error";
+    statusEl.className = "text-xs mt-2 min-h-4 text-danger";
     generateBtn.disabled = false;
   };
 }
@@ -339,7 +417,7 @@ generateBtn.addEventListener("click", () => {
   if (!wasmReady || !fileData) return;
   generateBtn.disabled = true;
   statusEl.textContent = "Generating... layer 0 / ?";
-  statusEl.className = "status";
+  statusEl.className = "text-xs mt-2 min-h-4";
   genStartTime = performance.now();
   const cfg = getConfig();
   if (workerSupported && genWorker) {
@@ -352,12 +430,12 @@ generateBtn.addEventListener("click", () => {
       gcodeOut.value = gcode;
       const elapsed = ((performance.now() - genStartTime) / 1e3).toFixed(1);
       statusEl.textContent = `Done \u2014 ${gcode.split("\n").length} lines of G-code in ${elapsed}s.`;
-      statusEl.className = "status ok";
+      statusEl.className = "text-xs mt-2 min-h-4 text-success";
       tryPreview();
       loadSimFn();
     } catch (e) {
       statusEl.textContent = "Error: " + e;
-      statusEl.className = "status error";
+      statusEl.className = "text-xs mt-2 min-h-4 text-danger";
     }
     generateBtn.disabled = false;
   }
@@ -482,7 +560,7 @@ function stampMat(ax, ay, bx, by, toolR) {
   const dpr = window.devicePixelRatio || 1;
   matCtx.save();
   matCtx.scale(dpr, dpr);
-  matCtx.strokeStyle = "rgba(255,80,80,0.35)";
+  matCtx.strokeStyle = theme.colors.simMaterialRemoval;
   matCtx.lineWidth = toolR * simScale * 2;
   matCtx.lineCap = "round";
   matCtx.beginPath();
@@ -513,7 +591,7 @@ function drawSimFrame() {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, rect.width, rect.height);
   if (simBounds) {
-    ctx.strokeStyle = "#2a2d3a";
+    ctx.strokeStyle = theme.colors.border;
     ctx.lineWidth = 1;
     ctx.strokeRect(
       simTx(simBounds.minX) - 4,
@@ -529,7 +607,7 @@ function drawSimFrame() {
     for (let i = 1; i <= simIdx && i < simMoves.length; i++) {
       const prev = simMoves[i - 1];
       const cur = simMoves[i];
-      ctx.strokeStyle = cur.rapid ? "rgba(255,255,100,0.25)" : "rgba(79,140,255,0.6)";
+      ctx.strokeStyle = cur.rapid ? theme.colors.simRapid : theme.colors.simCutting;
       ctx.beginPath();
       ctx.moveTo(simTx(prev.x), simTy(prev.y));
       ctx.lineTo(simTx(cur.x), simTy(cur.y));
@@ -543,21 +621,21 @@ function drawSimFrame() {
     const cx = simTx(m.x), cy = simTy(m.y);
     ctx.beginPath();
     ctx.arc(cx, cy, r + 2, 0, Math.PI * 2);
-    ctx.fillStyle = "rgba(0,0,0,0.3)";
+    ctx.fillStyle = theme.colors.simToolShadow;
     ctx.fill();
     ctx.beginPath();
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
     const cutting = !m.rapid && m.z < parseFloat($input("safe-z").value) - 0.01;
-    ctx.fillStyle = cutting ? "rgba(255,80,80,0.7)" : "rgba(100,200,100,0.5)";
-    ctx.strokeStyle = cutting ? "#ff5555" : "#55ff88";
+    ctx.fillStyle = cutting ? theme.colors.simToolCutting : theme.colors.simToolIdle;
+    ctx.strokeStyle = cutting ? theme.colors.simToolOutlineCutting : theme.colors.simToolOutlineIdle;
     ctx.lineWidth = 1.5;
     ctx.fill();
     ctx.stroke();
     ctx.beginPath();
     ctx.arc(cx, cy, 2, 0, Math.PI * 2);
-    ctx.fillStyle = "#fff";
+    ctx.fillStyle = theme.colors.simToolCenter;
     ctx.fill();
-    ctx.fillStyle = "#8888a0";
+    ctx.fillStyle = theme.colors.textDim;
     ctx.font = "11px monospace";
     ctx.fillText(`Z${m.z.toFixed(2)}`, cx + r + 6, cy + 4);
   }
@@ -679,7 +757,7 @@ function redrawSketch() {
   const offY = (rect.height - size * scale) / 2;
   const tx = (v) => offX + v * scale;
   const ty = (v) => offY + v * scale;
-  ctx.strokeStyle = "#1a1d27";
+  ctx.strokeStyle = theme.colors.surface;
   ctx.lineWidth = 0.5;
   const snap = sketchGridSnap() || size / 10;
   const maxLines = 200;
@@ -695,17 +773,17 @@ function redrawSketch() {
       ctx.stroke();
     }
   }
-  ctx.strokeStyle = "#2a2d3a";
+  ctx.strokeStyle = theme.colors.border;
   ctx.lineWidth = 1;
   ctx.strokeRect(tx(0), ty(0), size * scale, size * scale);
-  ctx.fillStyle = "#8888a0";
+  ctx.fillStyle = theme.colors.textDim;
   ctx.font = "10px monospace";
   ctx.fillText("0,0", tx(0) + 2, ty(0) - 4);
   ctx.fillText(`${size},${size}`, tx(size) - 40, ty(size) + 12);
-  for (const s of sketchShapes) drawShape(ctx, s, "#4f8cff", tx, ty, scale);
-  if (sketchDraft) drawShape(ctx, sketchDraft, "#55ff88", tx, ty, scale);
+  for (const s of sketchShapes) drawShape(ctx, s, theme.colors.accent, tx, ty, scale);
+  if (sketchDraft) drawShape(ctx, sketchDraft, theme.colors.success, tx, ty, scale);
   if (sketchTool === "polyline" && sketchPolyPts.length > 0) {
-    ctx.strokeStyle = "#55ff88";
+    ctx.strokeStyle = theme.colors.success;
     ctx.lineWidth = 1.5;
     ctx.beginPath();
     ctx.moveTo(tx(sketchPolyPts[0].x), ty(sketchPolyPts[0].y));
@@ -714,7 +792,7 @@ function redrawSketch() {
     if (sketchDraft && "_cursor" in sketchDraft && sketchDraft._cursor)
       ctx.lineTo(tx(sketchDraft._cursor.x), ty(sketchDraft._cursor.y));
     ctx.stroke();
-    ctx.fillStyle = "#55ff88";
+    ctx.fillStyle = theme.colors.success;
     for (const p of sketchPolyPts) {
       ctx.beginPath();
       ctx.arc(tx(p.x), ty(p.y), 3, 0, Math.PI * 2);
@@ -985,12 +1063,12 @@ function solveAndRender() {
     }
     const d = cstLastSnap.dof;
     const status = cstLastSnap.dof_status;
-    const color = status === "FullyConstrained" ? "#4caf50" : status === "OverConstrained" ? "#f44336" : "#ff9800";
+    const color = status === "FullyConstrained" ? theme.colors.cstFullyConstrained : status === "OverConstrained" ? theme.colors.cstOverConstrained : theme.colors.cstUnderConstrained;
     cstDofEl.style.color = color;
     cstDofEl.textContent = `DOF: ${d} (${status.replace(/([A-Z])/g, " $1").trim()})`;
     cstListEl.innerHTML = cstLastSnap.constraints.map(([id, c]) => {
       const type = Object.keys(c)[0] || "unknown";
-      return `<div>${id}. ${type} <button onclick="window.__removeCst(${id})" style="font-size:10px;cursor:pointer;background:none;border:none;color:#f44336">\u2715</button></div>`;
+      return `<div>${id}. ${type} <button onclick="window.__removeCst(${id})" style="font-size:10px;cursor:pointer;background:none;border:none;color:${theme.colors.cstOverConstrained}">\u2715</button></div>`;
     }).join("");
     redrawSketch();
   } catch (e) {
@@ -1082,16 +1160,16 @@ function drawConstraintOverlay() {
   const ty = (v) => offY + v * scale;
   for (const [id, pt] of cstLastSnap.points) {
     const status = cstLastSnap.point_status[id] || "UnderConstrained";
-    const color = status === "FullyConstrained" ? "#4caf50" : status === "OverConstrained" ? "#f44336" : "#ff9800";
+    const color = status === "FullyConstrained" ? theme.colors.cstFullyConstrained : status === "OverConstrained" ? theme.colors.cstOverConstrained : theme.colors.cstUnderConstrained;
     ctx.fillStyle = color;
     ctx.beginPath();
     ctx.arc(tx(pt.x), ty(pt.y), 4, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = "#8888a0";
+    ctx.fillStyle = theme.colors.textDim;
     ctx.font = "9px monospace";
     ctx.fillText(String(id), tx(pt.x) + 5, ty(pt.y) - 5);
   }
-  ctx.strokeStyle = "#ffeb3b";
+  ctx.strokeStyle = theme.colors.cstPickHighlight;
   ctx.lineWidth = 2;
   for (const pid of cstPicks) {
     const pt = cstPointMap[pid];
@@ -1103,12 +1181,16 @@ function drawConstraintOverlay() {
   ctx.restore();
 }
 
+// src/dataflow/index.ts
+import { dataflow_codegen, dataflow_codegen_multi } from "../pkg/rustcam.js";
+
 // src/dataflow/graph.ts
 import {
   dataflow_new,
   dataflow_destroy,
   dataflow_add_block,
   dataflow_remove_block,
+  dataflow_update_block,
   dataflow_connect,
   dataflow_disconnect,
   dataflow_advance,
@@ -1137,6 +1219,9 @@ var DataflowManager = class {
     const id = dataflow_add_block(this.graphId, blockType, JSON.stringify(config));
     this.positions.set(id, { x, y });
     return id;
+  }
+  updateBlock(blockId, blockType, config) {
+    dataflow_update_block(this.graphId, blockId, blockType, JSON.stringify(config));
   }
   removeBlock(blockId) {
     dataflow_remove_block(this.graphId, blockId);
@@ -1187,373 +1272,715 @@ var DataflowManager = class {
     this.lastTime = now;
     this.rafId = requestAnimationFrame(this.tick);
   };
+  /** Replay a saved project into this (empty) graph. Returns old→new block ID map. */
+  restoreProject(project) {
+    const idMap = /* @__PURE__ */ new Map();
+    for (const block of project.graph.blocks) {
+      const newId = this.addBlock(block.blockType, block.config);
+      idMap.set(block.id, newId);
+      const pos = project.positions[block.id];
+      if (pos) this.positions.set(newId, { x: pos.x, y: pos.y });
+    }
+    for (const ch of project.graph.channels) {
+      const from = idMap.get(ch.fromBlock);
+      const to = idMap.get(ch.toBlock);
+      if (from !== void 0 && to !== void 0) {
+        this.connect(from, ch.fromPort, to, ch.toPort);
+      }
+    }
+    return idMap;
+  }
   static blockTypes() {
     return JSON.parse(dataflow_block_types());
   }
 };
 
-// src/dataflow/editor.ts
+// src/dataflow/edge-view.ts
 var NODE_W = 140;
-var NODE_H_BASE = 40;
-var PORT_R = 6;
-var PORT_SPACING = 20;
 var PORT_OFFSET_Y = 30;
-var COLORS = {
-  bg: "#0f1117",
-  node: "#1a1d27",
-  nodeBorder: "#2a2d3a",
-  nodeSelected: "#4f8cff",
-  text: "#e0e0e8",
-  textDim: "#8888a0",
-  portFloat: "#4f8cff",
-  portBytes: "#ff9800",
-  portText: "#55ff88",
-  portSeries: "#ff55aa",
-  portAny: "#aaa",
-  wire: "#4f8cff66",
-  wireActive: "#4f8cff"
-};
-function portColor(kind) {
-  switch (kind) {
-    case "Float":
-      return COLORS.portFloat;
-    case "Bytes":
-      return COLORS.portBytes;
-    case "Text":
-      return COLORS.portText;
-    case "Series":
-      return COLORS.portSeries;
-    default:
-      return COLORS.portAny;
+var PORT_SPACING = 20;
+function edgePath(x1, y1, x2, y2) {
+  const dx = Math.abs(x2 - x1);
+  const cpX = Math.max(dx * 0.5, Math.min(Math.abs(y2 - y1), 50));
+  return `M ${x1},${y1} C ${x1 + cpX},${y1} ${x2 - cpX},${y2} ${x2},${y2}`;
+}
+function portY(nodeY, portIndex) {
+  return nodeY + PORT_OFFSET_Y + portIndex * PORT_SPACING + PORT_SPACING / 2;
+}
+function reconcileEdges(svg, edges, channels, blocks, positions, selectedEdge = null) {
+  const blockMap = /* @__PURE__ */ new Map();
+  for (const b of blocks) blockMap.set(b.id, b);
+  const currentIds = /* @__PURE__ */ new Set();
+  for (const ch of channels) {
+    const chId = ch.id[0];
+    currentIds.add(chId);
+    const fromBlock = blockMap.get(ch.from_block[0]);
+    const toBlock = blockMap.get(ch.to_block[0]);
+    if (!fromBlock || !toBlock) continue;
+    const fromPos = positions.get(fromBlock.id) ?? { x: 0, y: 0 };
+    const toPos = positions.get(toBlock.id) ?? { x: 0, y: 0 };
+    const x1 = fromPos.x + NODE_W;
+    const y1 = portY(fromPos.y, ch.from_port);
+    const x2 = toPos.x;
+    const y2 = portY(toPos.y, ch.to_port);
+    let path = edges.paths.get(chId);
+    if (!path) {
+      path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      path.classList.add("df-edge");
+      path.setAttribute("fill", "none");
+      path.setAttribute("stroke-width", "2");
+      path.dataset.ch = String(chId);
+      svg.appendChild(path);
+      edges.paths.set(chId, path);
+    }
+    const outPort = fromBlock.outputs[ch.from_port];
+    const color = outPort ? portColor(outPort.kind) : portColor("Any");
+    path.setAttribute("stroke", color);
+    path.setAttribute("d", edgePath(x1, y1, x2, y2));
+    path.classList.toggle("selected", chId === selectedEdge);
+  }
+  for (const [id, path] of edges.paths) {
+    if (!currentIds.has(id)) {
+      path.remove();
+      edges.paths.delete(id);
+    }
   }
 }
-function nodeHeight(block) {
-  const ports = Math.max(block.inputs.length, block.outputs.length);
-  return NODE_H_BASE + Math.max(ports, 1) * PORT_SPACING;
+function updateEdgesForBlock(edges, channels, blocks, positions, blockId) {
+  const blockMap = /* @__PURE__ */ new Map();
+  for (const b of blocks) blockMap.set(b.id, b);
+  for (const ch of channels) {
+    if (ch.from_block[0] !== blockId && ch.to_block[0] !== blockId) continue;
+    const chId = ch.id[0];
+    const path = edges.paths.get(chId);
+    if (!path) continue;
+    const fromBlock = blockMap.get(ch.from_block[0]);
+    const toBlock = blockMap.get(ch.to_block[0]);
+    if (!fromBlock || !toBlock) continue;
+    const fromPos = positions.get(fromBlock.id) ?? { x: 0, y: 0 };
+    const toPos = positions.get(toBlock.id) ?? { x: 0, y: 0 };
+    const x1 = fromPos.x + NODE_W;
+    const y1 = portY(fromPos.y, ch.from_port);
+    const x2 = toPos.x;
+    const y2 = portY(toPos.y, ch.to_port);
+    path.setAttribute("d", edgePath(x1, y1, x2, y2));
+  }
 }
-var DataflowEditor = class {
-  canvas;
-  ctx;
-  mgr;
-  snap = null;
-  selected = null;
-  drag = null;
-  wireDrag = null;
-  panX = 0;
-  panY = 0;
-  blockTypes = [];
-  /** Fires when block selection changes. */
-  onSelect = null;
-  constructor(canvas2, mgr2) {
-    this.canvas = canvas2;
-    this.ctx = canvas2.getContext("2d");
-    this.mgr = mgr2;
-    this.blockTypes = DataflowManager.blockTypes();
-    canvas2.addEventListener("mousedown", this.onMouseDown);
-    canvas2.addEventListener("mousemove", this.onMouseMove);
-    canvas2.addEventListener("mouseup", this.onMouseUp);
-    canvas2.addEventListener("dblclick", this.onDblClick);
-    canvas2.addEventListener("contextmenu", this.onContextMenu);
-    mgr2.onTick = (snap) => {
-      this.snap = snap;
-      this.draw();
+function createDragWire(svg) {
+  const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  path.classList.add("df-edge", "dragging");
+  path.setAttribute("fill", "none");
+  path.setAttribute("stroke-width", "2");
+  path.setAttribute("stroke-dasharray", "4 4");
+  svg.appendChild(path);
+  return path;
+}
+
+// src/dataflow/port-view.ts
+var NODE_W2 = 140;
+var PORT_R = 6;
+var PORT_SPACING2 = 20;
+var PORT_OFFSET_Y2 = 30;
+function createPorts(nodeEl, inputs, outputs, outputValues) {
+  for (let i = 0; i < inputs.length; i++) {
+    const port = inputs[i];
+    const py = PORT_OFFSET_Y2 + i * PORT_SPACING2 + PORT_SPACING2 / 2;
+    const portEl = document.createElement("div");
+    portEl.className = "df-port";
+    portEl.dataset.side = "input";
+    portEl.dataset.index = String(i);
+    portEl.style.backgroundColor = portColor(port.kind);
+    portEl.style.left = `${-PORT_R}px`;
+    portEl.style.top = `${py - PORT_R}px`;
+    nodeEl.appendChild(portEl);
+    const label = document.createElement("span");
+    label.className = "df-port-label";
+    label.style.left = `${PORT_R + 4}px`;
+    label.style.top = `${py - 5}px`;
+    label.textContent = port.name;
+    nodeEl.appendChild(label);
+  }
+  for (let i = 0; i < outputs.length; i++) {
+    const port = outputs[i];
+    const py = PORT_OFFSET_Y2 + i * PORT_SPACING2 + PORT_SPACING2 / 2;
+    const portEl = document.createElement("div");
+    portEl.className = "df-port";
+    portEl.dataset.side = "output";
+    portEl.dataset.index = String(i);
+    portEl.style.backgroundColor = portColor(port.kind);
+    portEl.style.left = `${NODE_W2 - PORT_R}px`;
+    portEl.style.top = `${py - PORT_R}px`;
+    nodeEl.appendChild(portEl);
+    const val = outputValues[i];
+    let labelText = port.name;
+    if (val) {
+      if (val.type === "Float") labelText = val.data.toFixed(2);
+      else if (val.type === "Text") labelText = val.data.slice(0, 12);
+      else if (val.type === "Series") labelText = `[${val.data.length}]`;
+    }
+    const label = document.createElement("span");
+    label.className = "df-port-label df-output-value";
+    label.style.right = `${PORT_R + 4}px`;
+    label.style.top = `${py - 5}px`;
+    label.textContent = labelText;
+    nodeEl.appendChild(label);
+  }
+}
+function updateOutputLabels(nodeEl, outputs, outputValues) {
+  const labels = nodeEl.querySelectorAll(".df-output-value");
+  for (let i = 0; i < labels.length && i < outputs.length; i++) {
+    const val = outputValues[i];
+    let labelText = outputs[i].name;
+    if (val) {
+      if (val.type === "Float") labelText = val.data.toFixed(2);
+      else if (val.type === "Text") labelText = val.data.slice(0, 12);
+      else if (val.type === "Series") labelText = `[${val.data.length}]`;
+    }
+    labels[i].textContent = labelText;
+  }
+}
+function setupWireDrag(workspace, nodeLayer, svg, mgr2, _getSnap, getPanZoom, onConnect) {
+  let wireDrag = null;
+  function screenToWorld(clientX, clientY) {
+    const rect = workspace.getBoundingClientRect();
+    const { panX, panY, scale } = getPanZoom();
+    return {
+      x: (clientX - rect.left - panX) / scale,
+      y: (clientY - rect.top - panY) / scale
     };
   }
-  resize() {
-    const rect = this.canvas.getBoundingClientRect();
-    if (rect.width < 1 || rect.height < 1) return;
-    const dpr = window.devicePixelRatio || 1;
-    this.canvas.width = rect.width * dpr;
-    this.canvas.height = rect.height * dpr;
-    this.draw();
-  }
-  updateSnapshot() {
-    this.snap = this.mgr.snapshot();
-    this.draw();
-  }
-  draw() {
-    const ctx = this.ctx;
-    const dpr = window.devicePixelRatio || 1;
-    const rect = this.canvas.getBoundingClientRect();
-    if (rect.width < 1) return;
-    ctx.save();
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, rect.width, rect.height);
-    ctx.fillStyle = COLORS.bg;
-    ctx.fillRect(0, 0, rect.width, rect.height);
-    if (!this.snap) {
-      ctx.restore();
-      return;
-    }
-    ctx.translate(this.panX, this.panY);
-    for (const ch of this.snap.channels) {
-      this.drawWire(ch);
-    }
-    if (this.wireDrag) {
-      ctx.strokeStyle = COLORS.wireActive;
-      ctx.lineWidth = 2;
-      ctx.setLineDash([4, 4]);
-      ctx.beginPath();
-      ctx.moveTo(this.wireDrag.fromX, this.wireDrag.fromY);
-      ctx.lineTo(this.wireDrag.mouseX - this.panX, this.wireDrag.mouseY - this.panY);
-      ctx.stroke();
-      ctx.setLineDash([]);
-    }
-    for (const block of this.snap.blocks) {
-      this.drawNode(block);
-    }
-    ctx.restore();
-  }
-  drawNode(block) {
-    const ctx = this.ctx;
-    const pos = this.mgr.positions.get(block.id) ?? { x: 50, y: 50 };
-    const h = nodeHeight(block);
-    const isSelected = this.selected === block.id;
-    ctx.fillStyle = COLORS.node;
-    ctx.strokeStyle = isSelected ? COLORS.nodeSelected : COLORS.nodeBorder;
-    ctx.lineWidth = isSelected ? 2 : 1;
-    ctx.beginPath();
-    ctx.roundRect(pos.x, pos.y, NODE_W, h, 6);
-    ctx.fill();
-    ctx.stroke();
-    ctx.fillStyle = COLORS.text;
-    ctx.font = "12px -apple-system, sans-serif";
-    ctx.fillText(block.name, pos.x + 10, pos.y + 18);
-    ctx.fillStyle = COLORS.textDim;
-    ctx.font = "10px monospace";
-    ctx.fillText(block.block_type, pos.x + 10, pos.y + 30);
-    for (let i = 0; i < block.inputs.length; i++) {
-      const py = pos.y + PORT_OFFSET_Y + i * PORT_SPACING + PORT_SPACING / 2;
-      ctx.fillStyle = portColor(block.inputs[i].kind);
-      ctx.beginPath();
-      ctx.arc(pos.x, py, PORT_R, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = COLORS.textDim;
-      ctx.font = "10px monospace";
-      ctx.fillText(block.inputs[i].name, pos.x + PORT_R + 4, py + 3);
-    }
-    for (let i = 0; i < block.outputs.length; i++) {
-      const py = pos.y + PORT_OFFSET_Y + i * PORT_SPACING + PORT_SPACING / 2;
-      ctx.fillStyle = portColor(block.outputs[i].kind);
-      ctx.beginPath();
-      ctx.arc(pos.x + NODE_W, py, PORT_R, 0, Math.PI * 2);
-      ctx.fill();
-      const val = block.output_values[i];
-      let label = block.outputs[i].name;
-      if (val) {
-        if (val.type === "Float") label = val.data.toFixed(2);
-        else if (val.type === "Text") label = val.data.slice(0, 12);
-        else if (val.type === "Series") label = `[${val.data.length}]`;
-      }
-      ctx.fillStyle = COLORS.textDim;
-      ctx.font = "10px monospace";
-      const tw = ctx.measureText(label).width;
-      ctx.fillText(label, pos.x + NODE_W - PORT_R - 4 - tw, py + 3);
-    }
-  }
-  drawWire(ch) {
-    const ctx = this.ctx;
-    const fromBlock = this.snap.blocks.find((b) => b.id === ch.from_block[0]);
-    const toBlock = this.snap.blocks.find((b) => b.id === ch.to_block[0]);
-    if (!fromBlock || !toBlock) return;
-    const fromPos = this.mgr.positions.get(fromBlock.id) ?? { x: 0, y: 0 };
-    const toPos = this.mgr.positions.get(toBlock.id) ?? { x: 0, y: 0 };
-    const x1 = fromPos.x + NODE_W;
-    const y1 = fromPos.y + PORT_OFFSET_Y + ch.from_port * PORT_SPACING + PORT_SPACING / 2;
-    const x2 = toPos.x;
-    const y2 = toPos.y + PORT_OFFSET_Y + ch.to_port * PORT_SPACING + PORT_SPACING / 2;
-    const cpX = Math.abs(x2 - x1) * 0.5;
-    ctx.strokeStyle = COLORS.wireActive;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(x1, y1);
-    ctx.bezierCurveTo(x1 + cpX, y1, x2 - cpX, y2, x2, y2);
-    ctx.stroke();
-  }
-  getPortAt(mx, my) {
-    if (!this.snap) return null;
-    for (const block of this.snap.blocks) {
-      const pos = this.mgr.positions.get(block.id) ?? { x: 0, y: 0 };
-      for (let i = 0; i < block.outputs.length; i++) {
-        const px = pos.x + NODE_W;
-        const py = pos.y + PORT_OFFSET_Y + i * PORT_SPACING + PORT_SPACING / 2;
-        if (Math.hypot(mx - px, my - py) < PORT_R + 4) {
-          return { blockId: block.id, portIndex: i, isOutput: true, px, py };
-        }
-      }
-      for (let i = 0; i < block.inputs.length; i++) {
-        const px = pos.x;
-        const py = pos.y + PORT_OFFSET_Y + i * PORT_SPACING + PORT_SPACING / 2;
-        if (Math.hypot(mx - px, my - py) < PORT_R + 4) {
-          return { blockId: block.id, portIndex: i, isOutput: false, px, py };
-        }
-      }
-    }
-    return null;
-  }
-  getNodeAt(mx, my) {
-    if (!this.snap) return null;
-    for (let i = this.snap.blocks.length - 1; i >= 0; i--) {
-      const block = this.snap.blocks[i];
-      const pos = this.mgr.positions.get(block.id) ?? { x: 0, y: 0 };
-      const h = nodeHeight(block);
-      if (mx >= pos.x && mx <= pos.x + NODE_W && my >= pos.y && my <= pos.y + h) {
-        return block.id;
-      }
-    }
-    return null;
-  }
-  canvasCoords(e) {
-    const rect = this.canvas.getBoundingClientRect();
-    return [e.clientX - rect.left - this.panX, e.clientY - rect.top - this.panY];
-  }
-  onMouseDown = (e) => {
-    const [mx, my] = this.canvasCoords(e);
-    const port = this.getPortAt(mx, my);
-    if (port) {
-      this.wireDrag = {
-        fromBlock: port.blockId,
-        fromPort: port.portIndex,
-        fromX: port.px,
-        fromY: port.py,
-        isOutput: port.isOutput,
-        mouseX: e.clientX - this.canvas.getBoundingClientRect().left,
-        mouseY: e.clientY - this.canvas.getBoundingClientRect().top
-      };
-      return;
-    }
-    const nodeId = this.getNodeAt(mx, my);
-    if (nodeId !== null) {
-      const pos = this.mgr.positions.get(nodeId) ?? { x: 0, y: 0 };
-      this.drag = {
-        type: "move-node",
-        blockId: nodeId,
-        offsetX: mx - pos.x,
-        offsetY: my - pos.y
-      };
-      this.selected = nodeId;
-      this.onSelect?.(nodeId, this.snap);
-      this.draw();
-      return;
-    }
-    this.selected = null;
-    this.onSelect?.(null, this.snap);
-    this.draw();
-  };
-  onMouseMove = (e) => {
-    if (this.drag) {
-      const [mx, my] = this.canvasCoords(e);
-      this.mgr.positions.set(this.drag.blockId, {
-        x: mx - this.drag.offsetX,
-        y: my - this.drag.offsetY
-      });
-      this.draw();
-    }
-    if (this.wireDrag) {
-      const rect = this.canvas.getBoundingClientRect();
-      this.wireDrag.mouseX = e.clientX - rect.left;
-      this.wireDrag.mouseY = e.clientY - rect.top;
-      this.draw();
-    }
-  };
-  onMouseUp = (e) => {
-    if (this.wireDrag) {
-      const [mx, my] = this.canvasCoords(e);
-      const port = this.getPortAt(mx, my);
-      if (port && port.isOutput !== this.wireDrag.isOutput) {
-        try {
-          if (this.wireDrag.isOutput) {
-            this.mgr.connect(this.wireDrag.fromBlock, this.wireDrag.fromPort, port.blockId, port.portIndex);
-          } else {
-            this.mgr.connect(port.blockId, port.portIndex, this.wireDrag.fromBlock, this.wireDrag.fromPort);
-          }
-          this.snap = this.mgr.snapshot();
-        } catch (err) {
-          console.warn("connect failed:", err);
-        }
-      }
-      this.wireDrag = null;
-      this.draw();
-    }
-    this.drag = null;
-  };
-  onDblClick = (e) => {
-    const [mx, my] = this.canvasCoords(e);
-    const nodeId = this.getNodeAt(mx, my);
-    if (nodeId === null) {
-      this.showPalette(mx, my);
-    }
-  };
-  onContextMenu = (e) => {
+  function onPointerDown(e) {
+    const target2 = e.target;
+    if (!target2.classList.contains("df-port")) return;
+    const nodeEl = target2.closest(".df-node");
+    if (!nodeEl) return;
+    const blockId = parseInt(nodeEl.dataset.id);
+    const side = target2.dataset.side;
+    const portIndex = parseInt(target2.dataset.index);
+    const isOutput = side === "output";
+    const pos = mgr2.positions.get(blockId) ?? { x: 0, y: 0 };
+    const fromX = isOutput ? pos.x + NODE_W2 : pos.x;
+    const fromY = pos.y + PORT_OFFSET_Y2 + portIndex * PORT_SPACING2 + PORT_SPACING2 / 2;
+    const dragPath = createDragWire(svg);
+    dragPath.setAttribute("stroke", theme.colors.wireActive);
+    wireDrag = { fromBlock: blockId, fromPort: portIndex, fromX, fromY, isOutput, dragPath };
     e.preventDefault();
-    const [mx, my] = this.canvasCoords(e);
-    const nodeId = this.getNodeAt(mx, my);
-    if (nodeId !== null) {
-      this.mgr.removeBlock(nodeId);
-      if (this.selected === nodeId) {
-        this.selected = null;
-        this.onSelect?.(null, this.snap);
+    e.stopPropagation();
+  }
+  function onPointerMove(e) {
+    if (!wireDrag) return;
+    const world = screenToWorld(e.clientX, e.clientY);
+    wireDrag.dragPath.setAttribute("d", edgePath(wireDrag.fromX, wireDrag.fromY, world.x, world.y));
+  }
+  function onPointerUp(e) {
+    if (!wireDrag) return;
+    const target2 = e.target;
+    if (target2.classList.contains("df-port")) {
+      const nodeEl = target2.closest(".df-node");
+      if (nodeEl) {
+        const toBlockId = parseInt(nodeEl.dataset.id);
+        const toSide = target2.dataset.side;
+        const toPortIndex = parseInt(target2.dataset.index);
+        const toIsOutput = toSide === "output";
+        if (toIsOutput !== wireDrag.isOutput) {
+          try {
+            if (wireDrag.isOutput) {
+              mgr2.connect(wireDrag.fromBlock, wireDrag.fromPort, toBlockId, toPortIndex);
+            } else {
+              mgr2.connect(toBlockId, toPortIndex, wireDrag.fromBlock, wireDrag.fromPort);
+            }
+            onConnect();
+          } catch (err) {
+            console.warn("connect failed:", err);
+          }
+        }
       }
-      this.snap = this.mgr.snapshot();
-      this.draw();
+    }
+    wireDrag.dragPath.remove();
+    wireDrag = null;
+  }
+  nodeLayer.addEventListener("pointerdown", onPointerDown);
+  workspace.addEventListener("pointermove", onPointerMove);
+  workspace.addEventListener("pointerup", onPointerUp);
+  return () => {
+    nodeLayer.removeEventListener("pointerdown", onPointerDown);
+    workspace.removeEventListener("pointermove", onPointerMove);
+    workspace.removeEventListener("pointerup", onPointerUp);
+    if (wireDrag) {
+      wireDrag.dragPath.remove();
+      wireDrag = null;
     }
   };
-  showPalette(x, y) {
-    document.getElementById("df-palette")?.remove();
-    const div = document.createElement("div");
-    div.id = "df-palette";
-    div.style.cssText = `
-      position: fixed; z-index: 100; background: #1a1d27; border: 1px solid #2a2d3a;
-      border-radius: 6px; padding: 4px 0; font-size: 13px; color: #e0e0e8;
-      max-height: 300px; overflow-y: auto; min-width: 160px;
-    `;
-    const rect = this.canvas.getBoundingClientRect();
-    div.style.left = `${rect.left + x + this.panX}px`;
-    div.style.top = `${rect.top + y + this.panY}px`;
+}
+
+// src/dataflow/node-view.ts
+var PORT_SPACING3 = 20;
+var NODE_H_BASE = 40;
+function nodeHeight(block) {
+  const ports = Math.max(block.inputs.length, block.outputs.length);
+  return NODE_H_BASE + Math.max(ports, 1) * PORT_SPACING3;
+}
+function reconcileNodes(nodeLayer, elements, blocks, positions, selectedId) {
+  const currentIds = /* @__PURE__ */ new Set();
+  for (const block of blocks) {
+    currentIds.add(block.id);
+    let nodeEl = elements.nodes.get(block.id);
+    if (!nodeEl) {
+      nodeEl = document.createElement("div");
+      nodeEl.className = "df-node";
+      nodeEl.dataset.id = String(block.id);
+      const header = document.createElement("div");
+      header.className = "df-node-header";
+      header.textContent = block.name;
+      nodeEl.appendChild(header);
+      const typeLabel = document.createElement("span");
+      typeLabel.className = "df-node-type";
+      typeLabel.textContent = block.block_type;
+      nodeEl.appendChild(typeLabel);
+      createPorts(nodeEl, block.inputs, block.outputs, block.output_values);
+      const h = nodeHeight(block);
+      nodeEl.style.height = `${h}px`;
+      nodeLayer.appendChild(nodeEl);
+      elements.nodes.set(block.id, nodeEl);
+    } else {
+      updateOutputLabels(nodeEl, block.outputs, block.output_values);
+    }
+    const pos = positions.get(block.id) ?? { x: 50, y: 50 };
+    nodeEl.style.transform = `translate(${pos.x}px, ${pos.y}px)`;
+    nodeEl.classList.toggle("selected", block.id === selectedId);
+  }
+  for (const [id, nodeEl] of elements.nodes) {
+    if (!currentIds.has(id)) {
+      nodeEl.remove();
+      elements.nodes.delete(id);
+    }
+  }
+}
+function setupNodeDrag(workspace, nodeLayer, mgr2, edges, getSnap, getPanZoom, onSelect, onDragEnd) {
+  let dragBlockId = null;
+  let dragOffsetX = 0;
+  let dragOffsetY = 0;
+  function screenToWorld(clientX, clientY) {
+    const rect = workspace.getBoundingClientRect();
+    const { panX, panY, scale } = getPanZoom();
+    return {
+      x: (clientX - rect.left - panX) / scale,
+      y: (clientY - rect.top - panY) / scale
+    };
+  }
+  function onPointerDown(e) {
+    if (e.target.classList.contains("df-port")) return;
+    const nodeEl = e.target.closest(".df-node");
+    if (!nodeEl) {
+      onSelect(null);
+      return;
+    }
+    const blockId = parseInt(nodeEl.dataset.id);
+    onSelect(blockId);
+    const pos = mgr2.positions.get(blockId) ?? { x: 0, y: 0 };
+    const world = screenToWorld(e.clientX, e.clientY);
+    dragBlockId = blockId;
+    dragOffsetX = world.x - pos.x;
+    dragOffsetY = world.y - pos.y;
+    nodeEl.style.cursor = "grabbing";
+    e.preventDefault();
+  }
+  function onPointerMove(e) {
+    if (dragBlockId === null) return;
+    const world = screenToWorld(e.clientX, e.clientY);
+    const newPos = {
+      x: world.x - dragOffsetX,
+      y: world.y - dragOffsetY
+    };
+    mgr2.positions.set(dragBlockId, newPos);
+    const nodeElements = nodeLayer.querySelectorAll(".df-node");
+    for (const el of nodeElements) {
+      if (el.dataset.id === String(dragBlockId)) {
+        el.style.transform = `translate(${newPos.x}px, ${newPos.y}px)`;
+        break;
+      }
+    }
+    const snap = getSnap();
+    if (snap) {
+      updateEdgesForBlock(edges, snap.channels, snap.blocks, mgr2.positions, dragBlockId);
+    }
+  }
+  function onPointerUp() {
+    if (dragBlockId !== null) {
+      const nodeElements = nodeLayer.querySelectorAll(".df-node");
+      for (const el of nodeElements) {
+        if (el.dataset.id === String(dragBlockId)) {
+          el.style.cursor = "grab";
+          break;
+        }
+      }
+      dragBlockId = null;
+      onDragEnd();
+    }
+  }
+  nodeLayer.addEventListener("pointerdown", onPointerDown);
+  workspace.addEventListener("pointermove", onPointerMove);
+  workspace.addEventListener("pointerup", onPointerUp);
+  return () => {
+    nodeLayer.removeEventListener("pointerdown", onPointerDown);
+    workspace.removeEventListener("pointermove", onPointerMove);
+    workspace.removeEventListener("pointerup", onPointerUp);
+  };
+}
+function setupNodeDelete(nodeLayer, mgr2, _getSelected, onDelete) {
+  function onContextMenu(e) {
+    e.preventDefault();
+    const nodeEl = e.target.closest(".df-node");
+    if (!nodeEl) return;
+    const blockId = parseInt(nodeEl.dataset.id);
+    mgr2.removeBlock(blockId);
+    onDelete(blockId);
+  }
+  nodeLayer.addEventListener("contextmenu", onContextMenu);
+  return () => nodeLayer.removeEventListener("contextmenu", onContextMenu);
+}
+
+// src/dataflow/palette.ts
+var DEFAULT_CONFIGS = {
+  constant: { value: 1 },
+  gain: { op: "Gain", param1: 1, param2: 0 },
+  clamp: { op: "Clamp", param1: 0, param2: 100 },
+  plot: { max_samples: 500 },
+  udp_source: { address: "127.0.0.1:9000" },
+  udp_sink: { address: "127.0.0.1:9001" },
+  adc_source: { channel: 0, resolution_bits: 12 },
+  pwm_sink: { channel: 0, frequency_hz: 1e3 },
+  gpio_out: { pin: 13 },
+  gpio_in: { pin: 2 },
+  uart_tx: { port: 0, baud: 115200 },
+  uart_rx: { port: 0, baud: 115200 }
+};
+function showPalette(workspace, blockTypes, mgr2, screenX, screenY, worldX, worldY, onBlockAdded) {
+  workspace.querySelector(".df-palette")?.remove();
+  const palette = document.createElement("div");
+  palette.className = "df-palette";
+  palette.style.left = `${screenX}px`;
+  palette.style.top = `${screenY}px`;
+  const search = document.createElement("input");
+  search.className = "df-palette-search";
+  search.type = "text";
+  search.placeholder = "Search blocks...";
+  palette.appendChild(search);
+  const listContainer = document.createElement("div");
+  palette.appendChild(listContainer);
+  function renderList(filter) {
+    listContainer.textContent = "";
+    const lowerFilter = filter.toLowerCase();
     let lastCat = "";
-    for (const bt of this.blockTypes) {
+    for (const bt of blockTypes) {
+      if (filter && !bt.name.toLowerCase().includes(lowerFilter) && !bt.block_type.toLowerCase().includes(lowerFilter)) {
+        continue;
+      }
       if (bt.category !== lastCat) {
         lastCat = bt.category;
         const header = document.createElement("div");
-        header.style.cssText = "padding: 4px 12px; font-size: 11px; color: #8888a0; text-transform: uppercase;";
+        header.className = "df-palette-category";
         header.textContent = bt.category;
-        div.appendChild(header);
+        listContainer.appendChild(header);
       }
       const item = document.createElement("div");
-      item.style.cssText = "padding: 4px 12px; cursor: pointer;";
+      item.className = "df-palette-item";
       item.textContent = bt.name;
-      item.addEventListener("mouseenter", () => {
-        item.style.background = "#2a2d3a";
-      });
-      item.addEventListener("mouseleave", () => {
-        item.style.background = "transparent";
-      });
       item.addEventListener("click", () => {
-        const defaultConfig = bt.block_type === "constant" ? { value: 1 } : bt.block_type === "gain" ? { op: "Gain", param1: 1, param2: 0 } : bt.block_type === "clamp" ? { op: "Clamp", param1: 0, param2: 100 } : bt.block_type === "plot" ? { max_samples: 500 } : bt.block_type === "udp_source" || bt.block_type === "udp_sink" ? { address: "127.0.0.1:9000" } : {};
-        this.mgr.addBlock(bt.block_type, defaultConfig, x, y);
-        this.snap = this.mgr.snapshot();
-        this.draw();
-        div.remove();
+        const config = DEFAULT_CONFIGS[bt.block_type] ?? {};
+        mgr2.addBlock(bt.block_type, config, worldX, worldY);
+        palette.remove();
+        onBlockAdded();
       });
-      div.appendChild(item);
+      listContainer.appendChild(item);
     }
-    document.body.appendChild(div);
-    const dismiss = (ev) => {
-      if (!div.contains(ev.target)) {
-        div.remove();
-        document.removeEventListener("mousedown", dismiss);
+  }
+  renderList("");
+  search.addEventListener("input", () => renderList(search.value));
+  search.addEventListener("keydown", (e) => {
+    e.stopPropagation();
+    if (e.key === "Escape") palette.remove();
+    if (e.key === "Enter") {
+      const firstItem = listContainer.querySelector(".df-palette-item");
+      firstItem?.click();
+    }
+  });
+  const wsRect = workspace.getBoundingClientRect();
+  palette.style.left = `${screenX - wsRect.left}px`;
+  palette.style.top = `${screenY - wsRect.top}px`;
+  palette.style.position = "absolute";
+  palette.style.zIndex = "100";
+  workspace.appendChild(palette);
+  requestAnimationFrame(() => search.focus());
+  const dismiss = (ev) => {
+    if (!palette.contains(ev.target)) {
+      palette.remove();
+      document.removeEventListener("mousedown", dismiss);
+    }
+  };
+  setTimeout(() => document.addEventListener("mousedown", dismiss), 0);
+}
+
+// src/dataflow/editor.ts
+var DataflowEditor = class {
+  workspace;
+  grid;
+  svg;
+  nodeLayer;
+  mgr;
+  snap = null;
+  selected = null;
+  selectedEdge = null;
+  panX = 0;
+  panY = 0;
+  scale = 1;
+  blockTypes;
+  nodeElements = { nodes: /* @__PURE__ */ new Map() };
+  edgeElements = { paths: /* @__PURE__ */ new Map() };
+  cleanupFns = [];
+  /** Fires when block selection changes. */
+  onSelect = null;
+  /** Fires when edge selection changes. */
+  onEdgeSelect = null;
+  /** Fires when graph structure changes (add/remove/connect/disconnect/move). */
+  onChange = null;
+  constructor(container, mgr2) {
+    this.mgr = mgr2;
+    this.blockTypes = DataflowManager.blockTypes();
+    this.workspace = container;
+    this.workspace.textContent = "";
+    this.workspace.classList.add("df-workspace");
+    this.grid = document.createElement("div");
+    this.grid.className = "df-grid";
+    this.workspace.appendChild(this.grid);
+    this.svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    this.svg.classList.add("df-edge-layer");
+    this.svg.setAttribute("width", "100%");
+    this.svg.setAttribute("height", "100%");
+    this.workspace.appendChild(this.svg);
+    this.nodeLayer = document.createElement("div");
+    this.nodeLayer.className = "df-node-layer";
+    this.workspace.appendChild(this.nodeLayer);
+    this.setupPanZoom();
+    const cleanupDrag = setupNodeDrag(
+      this.workspace,
+      this.nodeLayer,
+      mgr2,
+      this.edgeElements,
+      () => this.snap,
+      () => ({ panX: this.panX, panY: this.panY, scale: this.scale }),
+      (blockId) => {
+        this.selected = blockId;
+        this.selectedEdge = null;
+        this.reconcile();
+        this.onSelect?.(blockId, this.snap);
+      },
+      () => {
+        this.onChange?.();
       }
+    );
+    this.cleanupFns.push(cleanupDrag);
+    const cleanupDelete = setupNodeDelete(
+      this.nodeLayer,
+      mgr2,
+      () => this.selected,
+      (deletedId) => {
+        if (this.selected === deletedId) {
+          this.selected = null;
+          this.onSelect?.(null, this.snap);
+        }
+        this.snap = mgr2.snapshot();
+        this.reconcile();
+        this.onChange?.();
+      }
+    );
+    this.cleanupFns.push(cleanupDelete);
+    const cleanupWire = setupWireDrag(
+      this.workspace,
+      this.nodeLayer,
+      this.svg,
+      mgr2,
+      () => this.snap,
+      () => ({ panX: this.panX, panY: this.panY, scale: this.scale }),
+      () => {
+        this.snap = mgr2.snapshot();
+        this.reconcile();
+        this.onChange?.();
+      }
+    );
+    this.cleanupFns.push(cleanupWire);
+    this.setupDblClick();
+    this.setupEdgeClick();
+    this.setupKeyDelete();
+    mgr2.onTick = (snap) => {
+      this.snap = snap;
+      this.reconcile();
     };
-    setTimeout(() => document.addEventListener("mousedown", dismiss), 0);
+    this.snap = mgr2.snapshot();
+    this.reconcile();
+  }
+  resize() {
+    this.applyTransform();
+  }
+  updateSnapshot() {
+    this.snap = this.mgr.snapshot();
+    this.reconcile();
+  }
+  clearSelection() {
+    this.selected = null;
+    this.selectedEdge = null;
+    this.reconcile();
+  }
+  destroy() {
+    for (const fn of this.cleanupFns) fn();
+    this.cleanupFns = [];
+    this.mgr.onTick = null;
+    this.workspace.removeEventListener("wheel", this.onWheel);
+    this.workspace.removeEventListener("pointerdown", this.onPanStart);
+    this.workspace.removeEventListener("dblclick", this.onDblClick);
+    this.svg.removeEventListener("click", this.onEdgeClick);
+    this.workspace.removeEventListener("keydown", this.onKeyDelete);
+    this.workspace.textContent = "";
+    this.nodeElements.nodes.clear();
+    this.edgeElements.paths.clear();
+  }
+  reconcile() {
+    if (!this.snap) return;
+    reconcileNodes(this.nodeLayer, this.nodeElements, this.snap.blocks, this.mgr.positions, this.selected);
+    reconcileEdges(this.svg, this.edgeElements, this.snap.channels, this.snap.blocks, this.mgr.positions, this.selectedEdge);
+    const timeInfo = document.getElementById("df-time-info");
+    if (timeInfo) timeInfo.textContent = `t=${this.snap.time.toFixed(3)}`;
+  }
+  applyTransform() {
+    const transform = `translate(${this.panX}px, ${this.panY}px) scale(${this.scale})`;
+    this.nodeLayer.style.transform = transform;
+    this.nodeLayer.style.transformOrigin = "0 0";
+    this.svg.style.transform = transform;
+    this.svg.style.transformOrigin = "0 0";
+    const gridSize = 20 * this.scale;
+    this.grid.style.backgroundSize = `${gridSize}px ${gridSize}px`;
+    this.grid.style.backgroundPosition = `${this.panX}px ${this.panY}px`;
+  }
+  // ── Edge click ──────────────────────────────────────────────────
+  onEdgeClick = (e) => {
+    const target2 = e.target;
+    const chAttr = target2 instanceof SVGElement ? target2.dataset.ch : void 0;
+    if (!chAttr) return;
+    const channelId = parseInt(chAttr, 10);
+    if (isNaN(channelId)) return;
+    this.selectedEdge = channelId;
+    this.selected = null;
+    this.reconcile();
+    this.onEdgeSelect?.(channelId, this.snap);
+  };
+  setupEdgeClick() {
+    this.svg.addEventListener("click", this.onEdgeClick);
+  }
+  // ── Keyboard delete ────────────────────────────────────────────
+  onKeyDelete = (e) => {
+    if (e.key !== "Delete" && e.key !== "Backspace") return;
+    const tag = e.target.tagName;
+    if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+    if (this.selectedEdge !== null) {
+      this.mgr.disconnect(this.selectedEdge);
+      this.selectedEdge = null;
+      this.snap = this.mgr.snapshot();
+      this.reconcile();
+      this.onEdgeSelect?.(null, null);
+      this.onChange?.();
+    } else if (this.selected !== null) {
+      const id = this.selected;
+      this.mgr.removeBlock(id);
+      this.selected = null;
+      this.snap = this.mgr.snapshot();
+      this.reconcile();
+      this.onSelect?.(null, null);
+      this.onChange?.();
+    }
+  };
+  setupKeyDelete() {
+    this.workspace.setAttribute("tabindex", "0");
+    this.workspace.style.outline = "none";
+    this.workspace.addEventListener("keydown", this.onKeyDelete);
+  }
+  // ── Pan/Zoom ─────────────────────────────────────────────────────
+  isPanning = false;
+  panStartX = 0;
+  panStartY = 0;
+  panBaseX = 0;
+  panBaseY = 0;
+  setupPanZoom() {
+    this.workspace.addEventListener("wheel", this.onWheel, { passive: false });
+    this.workspace.addEventListener("pointerdown", this.onPanStart);
+  }
+  onWheel = (e) => {
+    e.preventDefault();
+    const rect = this.workspace.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    const oldScale = this.scale;
+    const delta = e.deltaY > 0 ? 0.9 : 1.1;
+    this.scale = Math.max(0.2, Math.min(3, this.scale * delta));
+    this.panX = mx - (mx - this.panX) * (this.scale / oldScale);
+    this.panY = my - (my - this.panY) * (this.scale / oldScale);
+    this.applyTransform();
+  };
+  onPanStart = (e) => {
+    if (e.button === 1 || e.button === 0 && e.shiftKey) {
+      const target2 = e.target;
+      if (target2.closest(".df-node") || target2.classList.contains("df-port")) return;
+      this.isPanning = true;
+      this.panStartX = e.clientX;
+      this.panStartY = e.clientY;
+      this.panBaseX = this.panX;
+      this.panBaseY = this.panY;
+      this.workspace.style.cursor = "grabbing";
+      e.preventDefault();
+      const onMove = (ev) => {
+        if (!this.isPanning) return;
+        this.panX = this.panBaseX + (ev.clientX - this.panStartX);
+        this.panY = this.panBaseY + (ev.clientY - this.panStartY);
+        this.applyTransform();
+      };
+      const onUp = () => {
+        this.isPanning = false;
+        this.workspace.style.cursor = "";
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("pointerup", onUp);
+      };
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onUp);
+    }
+  };
+  // ── Double-click palette ─────────────────────────────────────────
+  onDblClick = (e) => {
+    const target2 = e.target;
+    if (target2.closest(".df-node") || target2.closest(".df-palette")) return;
+    const rect = this.workspace.getBoundingClientRect();
+    const worldX = (e.clientX - rect.left - this.panX) / this.scale;
+    const worldY = (e.clientY - rect.top - this.panY) / this.scale;
+    showPalette(
+      this.workspace,
+      this.blockTypes,
+      this.mgr,
+      e.clientX,
+      e.clientY,
+      worldX,
+      worldY,
+      () => {
+        this.snap = this.mgr.snapshot();
+        this.reconcile();
+        this.onChange?.();
+      }
+    );
+  };
+  setupDblClick() {
+    this.workspace.addEventListener("dblclick", this.onDblClick);
   }
 };
 
 // src/dataflow/plot.ts
 var PLOT_PAD = 30;
-var PLOT_BG = "#1a1d27";
-var PLOT_AXIS = "#2a2d3a";
-var PLOT_LINE = "#4f8cff";
-var PLOT_TEXT = "#8888a0";
 function drawPlot(canvas2, data, label = "Plot") {
   const ctx = canvas2.getContext("2d");
   if (!ctx) return;
@@ -1566,10 +1993,10 @@ function drawPlot(canvas2, data, label = "Plot") {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   const w = rect.width;
   const h = rect.height;
-  ctx.fillStyle = PLOT_BG;
+  ctx.fillStyle = theme.colors.surface;
   ctx.fillRect(0, 0, w, h);
   if (data.length < 2) {
-    ctx.fillStyle = PLOT_TEXT;
+    ctx.fillStyle = theme.colors.textDim;
     ctx.font = "12px monospace";
     ctx.fillText("Waiting for data...", PLOT_PAD, h / 2);
     ctx.restore();
@@ -1586,21 +2013,21 @@ function drawPlot(canvas2, data, label = "Plot") {
     max += 1;
     min -= 1;
   }
-  ctx.strokeStyle = PLOT_AXIS;
+  ctx.strokeStyle = theme.colors.border;
   ctx.lineWidth = 1;
   ctx.beginPath();
   ctx.moveTo(PLOT_PAD, PLOT_PAD);
   ctx.lineTo(PLOT_PAD, h - PLOT_PAD);
   ctx.lineTo(w - PLOT_PAD, h - PLOT_PAD);
   ctx.stroke();
-  ctx.fillStyle = PLOT_TEXT;
+  ctx.fillStyle = theme.colors.textDim;
   ctx.font = "10px monospace";
   ctx.textAlign = "right";
   ctx.fillText(max.toFixed(2), PLOT_PAD - 4, PLOT_PAD + 4);
   ctx.fillText(min.toFixed(2), PLOT_PAD - 4, h - PLOT_PAD + 4);
   ctx.textAlign = "left";
   ctx.fillText(label, PLOT_PAD, PLOT_PAD - 8);
-  ctx.strokeStyle = PLOT_LINE;
+  ctx.strokeStyle = theme.colors.accent;
   ctx.lineWidth = 1.5;
   ctx.beginPath();
   for (let i = 0; i < data.length; i++) {
@@ -1613,16 +2040,3023 @@ function drawPlot(canvas2, data, label = "Plot") {
   ctx.restore();
 }
 
+// src/dataflow/zip.ts
+var encoder = new TextEncoder();
+function crc32(data) {
+  const table = new Uint32Array(256);
+  for (let i = 0; i < 256; i++) {
+    let c = i;
+    for (let j = 0; j < 8; j++) {
+      c = c & 1 ? 3988292384 ^ c >>> 1 : c >>> 1;
+    }
+    table[i] = c;
+  }
+  let crc = 4294967295;
+  for (let i = 0; i < data.length; i++) {
+    crc = table[(crc ^ data[i]) & 255] ^ crc >>> 8;
+  }
+  return (crc ^ 4294967295) >>> 0;
+}
+function createZip(files) {
+  const encoded = files.map(([path, content]) => ({
+    nameBytes: encoder.encode(path),
+    dataBytes: encoder.encode(content)
+  }));
+  let localSize = 0;
+  let centralSize = 0;
+  for (const { nameBytes, dataBytes } of encoded) {
+    localSize += 30 + nameBytes.length + dataBytes.length;
+    centralSize += 46 + nameBytes.length;
+  }
+  const totalSize = localSize + centralSize + 22;
+  const buf = new ArrayBuffer(totalSize);
+  const view = new DataView(buf);
+  const bytes = new Uint8Array(buf);
+  let offset = 0;
+  const offsets = [];
+  for (const { nameBytes, dataBytes } of encoded) {
+    offsets.push(offset);
+    const crc = crc32(dataBytes);
+    const size = dataBytes.length;
+    const nameLen = nameBytes.length;
+    view.setUint32(offset, 67324752, true);
+    view.setUint16(offset + 4, 20, true);
+    view.setUint16(offset + 6, 0, true);
+    view.setUint16(offset + 8, 0, true);
+    view.setUint16(offset + 10, 0, true);
+    view.setUint16(offset + 12, 0, true);
+    view.setUint32(offset + 14, crc, true);
+    view.setUint32(offset + 18, size, true);
+    view.setUint32(offset + 22, size, true);
+    view.setUint16(offset + 26, nameLen, true);
+    view.setUint16(offset + 28, 0, true);
+    offset += 30;
+    bytes.set(nameBytes, offset);
+    offset += nameLen;
+    bytes.set(dataBytes, offset);
+    offset += size;
+  }
+  const cdOffset = offset;
+  for (let i = 0; i < encoded.length; i++) {
+    const { nameBytes, dataBytes } = encoded[i];
+    const crc = crc32(dataBytes);
+    const size = dataBytes.length;
+    const nameLen = nameBytes.length;
+    view.setUint32(offset, 33639248, true);
+    view.setUint16(offset + 4, 20, true);
+    view.setUint16(offset + 6, 20, true);
+    view.setUint16(offset + 8, 0, true);
+    view.setUint16(offset + 10, 0, true);
+    view.setUint16(offset + 12, 0, true);
+    view.setUint16(offset + 14, 0, true);
+    view.setUint32(offset + 16, crc, true);
+    view.setUint32(offset + 20, size, true);
+    view.setUint32(offset + 24, size, true);
+    view.setUint16(offset + 28, nameLen, true);
+    view.setUint16(offset + 30, 0, true);
+    view.setUint16(offset + 32, 0, true);
+    view.setUint16(offset + 34, 0, true);
+    view.setUint16(offset + 36, 0, true);
+    view.setUint32(offset + 38, 0, true);
+    view.setUint32(offset + 42, offsets[i], true);
+    offset += 46;
+    bytes.set(nameBytes, offset);
+    offset += nameLen;
+  }
+  const cdSize = offset - cdOffset;
+  const count = encoded.length;
+  view.setUint32(offset, 101010256, true);
+  view.setUint16(offset + 4, 0, true);
+  view.setUint16(offset + 6, 0, true);
+  view.setUint16(offset + 8, count, true);
+  view.setUint16(offset + 10, count, true);
+  view.setUint32(offset + 12, cdSize, true);
+  view.setUint32(offset + 16, cdOffset, true);
+  view.setUint16(offset + 20, 0, true);
+  return new Blob([buf], { type: "application/zip" });
+}
+
+// node_modules/cbor-x/decode.js
+var decoder;
+try {
+  decoder = new TextDecoder();
+} catch (error) {
+}
+var src;
+var srcEnd;
+var position = 0;
+var EMPTY_ARRAY = [];
+var LEGACY_RECORD_INLINE_ID = 105;
+var RECORD_DEFINITIONS_ID = 57342;
+var RECORD_INLINE_ID = 57343;
+var BUNDLED_STRINGS_ID = 57337;
+var PACKED_REFERENCE_TAG_ID = 6;
+var STOP_CODE = {};
+var maxArraySize = 11281e4;
+var maxMapSize = 1681e4;
+var strings = EMPTY_ARRAY;
+var stringPosition = 0;
+var currentDecoder = {};
+var currentStructures;
+var srcString;
+var srcStringStart = 0;
+var srcStringEnd = 0;
+var bundledStrings;
+var referenceMap;
+var currentExtensions = [];
+var currentExtensionRanges = [];
+var packedValues;
+var dataView;
+var restoreMapsAsObject;
+var defaultOptions = {
+  useRecords: false,
+  mapsAsObjects: true
+};
+var sequentialMode = false;
+var inlineObjectReadThreshold = 2;
+try {
+  new Function("");
+} catch (error) {
+  inlineObjectReadThreshold = Infinity;
+}
+var Decoder = class _Decoder {
+  constructor(options) {
+    if (options) {
+      if ((options.keyMap || options._keyMap) && !options.useRecords) {
+        options.useRecords = false;
+        options.mapsAsObjects = true;
+      }
+      if (options.useRecords === false && options.mapsAsObjects === void 0)
+        options.mapsAsObjects = true;
+      if (options.getStructures)
+        options.getShared = options.getStructures;
+      if (options.getShared && !options.structures)
+        (options.structures = []).uninitialized = true;
+      if (options.keyMap) {
+        this.mapKey = /* @__PURE__ */ new Map();
+        for (let [k, v] of Object.entries(options.keyMap)) this.mapKey.set(v, k);
+      }
+    }
+    Object.assign(this, options);
+  }
+  /*
+  decodeKey(key) {
+  	return this.keyMap
+  		? Object.keys(this.keyMap)[Object.values(this.keyMap).indexOf(key)] || key
+  		: key
+  }
+  */
+  decodeKey(key) {
+    return this.keyMap ? this.mapKey.get(key) || key : key;
+  }
+  encodeKey(key) {
+    return this.keyMap && this.keyMap.hasOwnProperty(key) ? this.keyMap[key] : key;
+  }
+  encodeKeys(rec) {
+    if (!this._keyMap) return rec;
+    let map = /* @__PURE__ */ new Map();
+    for (let [k, v] of Object.entries(rec)) map.set(this._keyMap.hasOwnProperty(k) ? this._keyMap[k] : k, v);
+    return map;
+  }
+  decodeKeys(map) {
+    if (!this._keyMap || map.constructor.name != "Map") return map;
+    if (!this._mapKey) {
+      this._mapKey = /* @__PURE__ */ new Map();
+      for (let [k, v] of Object.entries(this._keyMap)) this._mapKey.set(v, k);
+    }
+    let res = {};
+    map.forEach((v, k) => res[safeKey(this._mapKey.has(k) ? this._mapKey.get(k) : k)] = v);
+    return res;
+  }
+  mapDecode(source, end) {
+    let res = this.decode(source);
+    if (this._keyMap) {
+      switch (res.constructor.name) {
+        case "Array":
+          return res.map((r) => this.decodeKeys(r));
+      }
+    }
+    return res;
+  }
+  decode(source, end) {
+    if (src) {
+      return saveState(() => {
+        clearSource();
+        return this ? this.decode(source, end) : _Decoder.prototype.decode.call(defaultOptions, source, end);
+      });
+    }
+    srcEnd = end > -1 ? end : source.length;
+    position = 0;
+    stringPosition = 0;
+    srcStringEnd = 0;
+    srcString = null;
+    strings = EMPTY_ARRAY;
+    bundledStrings = null;
+    src = source;
+    try {
+      dataView = source.dataView || (source.dataView = new DataView(source.buffer, source.byteOffset, source.byteLength));
+    } catch (error) {
+      src = null;
+      if (source instanceof Uint8Array)
+        throw error;
+      throw new Error("Source must be a Uint8Array or Buffer but was a " + (source && typeof source == "object" ? source.constructor.name : typeof source));
+    }
+    if (this instanceof _Decoder) {
+      currentDecoder = this;
+      packedValues = this.sharedValues && (this.pack ? new Array(this.maxPrivatePackedValues || 16).concat(this.sharedValues) : this.sharedValues);
+      if (this.structures) {
+        currentStructures = this.structures;
+        return checkedRead();
+      } else if (!currentStructures || currentStructures.length > 0) {
+        currentStructures = [];
+      }
+    } else {
+      currentDecoder = defaultOptions;
+      if (!currentStructures || currentStructures.length > 0)
+        currentStructures = [];
+      packedValues = null;
+    }
+    return checkedRead();
+  }
+  decodeMultiple(source, forEach) {
+    let values, lastPosition = 0;
+    try {
+      let size = source.length;
+      sequentialMode = true;
+      let value = this ? this.decode(source, size) : defaultDecoder.decode(source, size);
+      if (forEach) {
+        if (forEach(value) === false) {
+          return;
+        }
+        while (position < size) {
+          lastPosition = position;
+          if (forEach(checkedRead()) === false) {
+            return;
+          }
+        }
+      } else {
+        values = [value];
+        while (position < size) {
+          lastPosition = position;
+          values.push(checkedRead());
+        }
+        return values;
+      }
+    } catch (error) {
+      error.lastPosition = lastPosition;
+      error.values = values;
+      throw error;
+    } finally {
+      sequentialMode = false;
+      clearSource();
+    }
+  }
+};
+function checkedRead() {
+  try {
+    let result = read();
+    if (bundledStrings) {
+      if (position >= bundledStrings.postBundlePosition) {
+        let error = new Error("Unexpected bundle position");
+        error.incomplete = true;
+        throw error;
+      }
+      position = bundledStrings.postBundlePosition;
+      bundledStrings = null;
+    }
+    if (position == srcEnd) {
+      currentStructures = null;
+      src = null;
+      if (referenceMap)
+        referenceMap = null;
+    } else if (position > srcEnd) {
+      let error = new Error("Unexpected end of CBOR data");
+      error.incomplete = true;
+      throw error;
+    } else if (!sequentialMode) {
+      throw new Error("Data read, but end of buffer not reached");
+    }
+    return result;
+  } catch (error) {
+    clearSource();
+    if (error instanceof RangeError || error.message.startsWith("Unexpected end of buffer")) {
+      error.incomplete = true;
+    }
+    throw error;
+  }
+}
+function read() {
+  let token = src[position++];
+  let majorType = token >> 5;
+  token = token & 31;
+  if (token > 23) {
+    switch (token) {
+      case 24:
+        token = src[position++];
+        break;
+      case 25:
+        if (majorType == 7) {
+          return getFloat16();
+        }
+        token = dataView.getUint16(position);
+        position += 2;
+        break;
+      case 26:
+        if (majorType == 7) {
+          let value = dataView.getFloat32(position);
+          if (currentDecoder.useFloat32 > 2) {
+            let multiplier = mult10[(src[position] & 127) << 1 | src[position + 1] >> 7];
+            position += 4;
+            return (multiplier * value + (value > 0 ? 0.5 : -0.5) >> 0) / multiplier;
+          }
+          position += 4;
+          return value;
+        }
+        token = dataView.getUint32(position);
+        position += 4;
+        if (majorType === 1) return -1 - token;
+        break;
+      case 27:
+        if (majorType == 7) {
+          let value = dataView.getFloat64(position);
+          position += 8;
+          return value;
+        }
+        if (majorType > 1) {
+          if (dataView.getUint32(position) > 0)
+            throw new Error("JavaScript does not support arrays, maps, or strings with length over 4294967295");
+          token = dataView.getUint32(position + 4);
+        } else if (currentDecoder.int64AsNumber) {
+          token = dataView.getUint32(position) * 4294967296;
+          token += dataView.getUint32(position + 4);
+        } else token = dataView.getBigUint64(position);
+        position += 8;
+        break;
+      case 31:
+        switch (majorType) {
+          case 2:
+          // byte string
+          case 3:
+            throw new Error("Indefinite length not supported for byte or text strings");
+          case 4:
+            let array = [];
+            let value, i = 0;
+            while ((value = read()) != STOP_CODE) {
+              if (i >= maxArraySize) throw new Error(`Array length exceeds ${maxArraySize}`);
+              array[i++] = value;
+            }
+            return majorType == 4 ? array : majorType == 3 ? array.join("") : Buffer.concat(array);
+          case 5:
+            let key;
+            if (currentDecoder.mapsAsObjects) {
+              let object = {};
+              let i2 = 0;
+              if (currentDecoder.keyMap) {
+                while ((key = read()) != STOP_CODE) {
+                  if (i2++ >= maxMapSize) throw new Error(`Property count exceeds ${maxMapSize}`);
+                  object[safeKey(currentDecoder.decodeKey(key))] = read();
+                }
+              } else {
+                while ((key = read()) != STOP_CODE) {
+                  if (i2++ >= maxMapSize) throw new Error(`Property count exceeds ${maxMapSize}`);
+                  object[safeKey(key)] = read();
+                }
+              }
+              return object;
+            } else {
+              if (restoreMapsAsObject) {
+                currentDecoder.mapsAsObjects = true;
+                restoreMapsAsObject = false;
+              }
+              let map = /* @__PURE__ */ new Map();
+              if (currentDecoder.keyMap) {
+                let i2 = 0;
+                while ((key = read()) != STOP_CODE) {
+                  if (i2++ >= maxMapSize) {
+                    throw new Error(`Map size exceeds ${maxMapSize}`);
+                  }
+                  map.set(currentDecoder.decodeKey(key), read());
+                }
+              } else {
+                let i2 = 0;
+                while ((key = read()) != STOP_CODE) {
+                  if (i2++ >= maxMapSize) {
+                    throw new Error(`Map size exceeds ${maxMapSize}`);
+                  }
+                  map.set(key, read());
+                }
+              }
+              return map;
+            }
+          case 7:
+            return STOP_CODE;
+          default:
+            throw new Error("Invalid major type for indefinite length " + majorType);
+        }
+      default:
+        throw new Error("Unknown token " + token);
+    }
+  }
+  switch (majorType) {
+    case 0:
+      return token;
+    case 1:
+      return ~token;
+    case 2:
+      return readBin(token);
+    case 3:
+      if (srcStringEnd >= position) {
+        return srcString.slice(position - srcStringStart, (position += token) - srcStringStart);
+      }
+      if (srcStringEnd == 0 && srcEnd < 140 && token < 32) {
+        let string = token < 16 ? shortStringInJS(token) : longStringInJS(token);
+        if (string != null)
+          return string;
+      }
+      return readFixedString(token);
+    case 4:
+      if (token >= maxArraySize) throw new Error(`Array length exceeds ${maxArraySize}`);
+      let array = new Array(token);
+      for (let i = 0; i < token; i++) array[i] = read();
+      return array;
+    case 5:
+      if (token >= maxMapSize) throw new Error(`Map size exceeds ${maxArraySize}`);
+      if (currentDecoder.mapsAsObjects) {
+        let object = {};
+        if (currentDecoder.keyMap) for (let i = 0; i < token; i++) object[safeKey(currentDecoder.decodeKey(read()))] = read();
+        else for (let i = 0; i < token; i++) object[safeKey(read())] = read();
+        return object;
+      } else {
+        if (restoreMapsAsObject) {
+          currentDecoder.mapsAsObjects = true;
+          restoreMapsAsObject = false;
+        }
+        let map = /* @__PURE__ */ new Map();
+        if (currentDecoder.keyMap) for (let i = 0; i < token; i++) map.set(currentDecoder.decodeKey(read()), read());
+        else for (let i = 0; i < token; i++) map.set(read(), read());
+        return map;
+      }
+    case 6:
+      if (token >= BUNDLED_STRINGS_ID) {
+        let structure = currentStructures[token & 8191];
+        if (structure) {
+          if (!structure.read) structure.read = createStructureReader(structure);
+          return structure.read();
+        }
+        if (token < 65536) {
+          if (token == RECORD_INLINE_ID) {
+            let length = readJustLength();
+            let id = read();
+            let structure2 = read();
+            recordDefinition(id, structure2);
+            let object = {};
+            if (currentDecoder.keyMap) for (let i = 2; i < length; i++) {
+              let key = currentDecoder.decodeKey(structure2[i - 2]);
+              object[safeKey(key)] = read();
+            }
+            else for (let i = 2; i < length; i++) {
+              let key = structure2[i - 2];
+              object[safeKey(key)] = read();
+            }
+            return object;
+          } else if (token == RECORD_DEFINITIONS_ID) {
+            let length = readJustLength();
+            let id = read();
+            for (let i = 2; i < length; i++) {
+              recordDefinition(id++, read());
+            }
+            return read();
+          } else if (token == BUNDLED_STRINGS_ID) {
+            return readBundleExt();
+          }
+          if (currentDecoder.getShared) {
+            loadShared();
+            structure = currentStructures[token & 8191];
+            if (structure) {
+              if (!structure.read)
+                structure.read = createStructureReader(structure);
+              return structure.read();
+            }
+          }
+        }
+      }
+      let extension = currentExtensions[token];
+      if (extension) {
+        if (extension.handlesRead)
+          return extension(read);
+        else
+          return extension(read());
+      } else {
+        let input = read();
+        for (let i = 0; i < currentExtensionRanges.length; i++) {
+          let value = currentExtensionRanges[i](token, input);
+          if (value !== void 0)
+            return value;
+        }
+        return new Tag(input, token);
+      }
+    case 7:
+      switch (token) {
+        case 20:
+          return false;
+        case 21:
+          return true;
+        case 22:
+          return null;
+        case 23:
+          return;
+        // undefined
+        case 31:
+        default:
+          let packedValue = (packedValues || getPackedValues())[token];
+          if (packedValue !== void 0)
+            return packedValue;
+          throw new Error("Unknown token " + token);
+      }
+    default:
+      if (isNaN(token)) {
+        let error = new Error("Unexpected end of CBOR data");
+        error.incomplete = true;
+        throw error;
+      }
+      throw new Error("Unknown CBOR token " + token);
+  }
+}
+var validName = /^[a-zA-Z_$][a-zA-Z\d_$]*$/;
+function createStructureReader(structure) {
+  if (!structure) throw new Error("Structure is required in record definition");
+  function readObject() {
+    let length = src[position++];
+    length = length & 31;
+    if (length > 23) {
+      switch (length) {
+        case 24:
+          length = src[position++];
+          break;
+        case 25:
+          length = dataView.getUint16(position);
+          position += 2;
+          break;
+        case 26:
+          length = dataView.getUint32(position);
+          position += 4;
+          break;
+        default:
+          throw new Error("Expected array header, but got " + src[position - 1]);
+      }
+    }
+    let compiledReader = this.compiledReader;
+    while (compiledReader) {
+      if (compiledReader.propertyCount === length)
+        return compiledReader(read);
+      compiledReader = compiledReader.next;
+    }
+    if (this.slowReads++ >= inlineObjectReadThreshold) {
+      let array = this.length == length ? this : this.slice(0, length);
+      compiledReader = currentDecoder.keyMap ? new Function("r", "return {" + array.map((k) => currentDecoder.decodeKey(k)).map((k) => validName.test(k) ? safeKey(k) + ":r()" : "[" + JSON.stringify(k) + "]:r()").join(",") + "}") : new Function("r", "return {" + array.map((key) => validName.test(key) ? safeKey(key) + ":r()" : "[" + JSON.stringify(key) + "]:r()").join(",") + "}");
+      if (this.compiledReader)
+        compiledReader.next = this.compiledReader;
+      compiledReader.propertyCount = length;
+      this.compiledReader = compiledReader;
+      return compiledReader(read);
+    }
+    let object = {};
+    if (currentDecoder.keyMap) for (let i = 0; i < length; i++) object[safeKey(currentDecoder.decodeKey(this[i]))] = read();
+    else for (let i = 0; i < length; i++) {
+      object[safeKey(this[i])] = read();
+    }
+    return object;
+  }
+  structure.slowReads = 0;
+  return readObject;
+}
+function safeKey(key) {
+  if (typeof key === "string") return key === "__proto__" ? "__proto_" : key;
+  if (typeof key === "number" || typeof key === "boolean" || typeof key === "bigint") return key.toString();
+  if (key == null) return key + "";
+  throw new Error("Invalid property name type " + typeof key);
+}
+var readFixedString = readStringJS;
+function readStringJS(length) {
+  let result;
+  if (length < 16) {
+    if (result = shortStringInJS(length))
+      return result;
+  }
+  if (length > 64 && decoder)
+    return decoder.decode(src.subarray(position, position += length));
+  const end = position + length;
+  const units = [];
+  result = "";
+  while (position < end) {
+    const byte1 = src[position++];
+    if ((byte1 & 128) === 0) {
+      units.push(byte1);
+    } else if ((byte1 & 224) === 192) {
+      const byte2 = src[position++] & 63;
+      const codePoint = (byte1 & 31) << 6 | byte2;
+      if (codePoint < 128) {
+        units.push(65533);
+      } else {
+        units.push(codePoint);
+      }
+    } else if ((byte1 & 240) === 224) {
+      const byte2 = src[position++] & 63;
+      const byte3 = src[position++] & 63;
+      const codePoint = (byte1 & 31) << 12 | byte2 << 6 | byte3;
+      if (codePoint < 2048 || codePoint >= 55296 && codePoint <= 57343) {
+        units.push(65533);
+      } else {
+        units.push(codePoint);
+      }
+    } else if ((byte1 & 248) === 240) {
+      const byte2 = src[position++] & 63;
+      const byte3 = src[position++] & 63;
+      const byte4 = src[position++] & 63;
+      let unit = (byte1 & 7) << 18 | byte2 << 12 | byte3 << 6 | byte4;
+      if (unit < 65536 || unit > 1114111) {
+        units.push(65533);
+      } else if (unit > 65535) {
+        unit -= 65536;
+        units.push(unit >>> 10 & 1023 | 55296);
+        unit = 56320 | unit & 1023;
+        units.push(unit);
+      } else {
+        units.push(unit);
+      }
+    } else {
+      units.push(65533);
+    }
+    if (units.length >= 4096) {
+      result += fromCharCode.apply(String, units);
+      units.length = 0;
+    }
+  }
+  if (units.length > 0) {
+    result += fromCharCode.apply(String, units);
+  }
+  return result;
+}
+var fromCharCode = String.fromCharCode;
+function longStringInJS(length) {
+  let start = position;
+  let bytes = new Array(length);
+  for (let i = 0; i < length; i++) {
+    const byte = src[position++];
+    if ((byte & 128) > 0) {
+      position = start;
+      return;
+    }
+    bytes[i] = byte;
+  }
+  return fromCharCode.apply(String, bytes);
+}
+function shortStringInJS(length) {
+  if (length < 4) {
+    if (length < 2) {
+      if (length === 0)
+        return "";
+      else {
+        let a = src[position++];
+        if ((a & 128) > 1) {
+          position -= 1;
+          return;
+        }
+        return fromCharCode(a);
+      }
+    } else {
+      let a = src[position++];
+      let b = src[position++];
+      if ((a & 128) > 0 || (b & 128) > 0) {
+        position -= 2;
+        return;
+      }
+      if (length < 3)
+        return fromCharCode(a, b);
+      let c = src[position++];
+      if ((c & 128) > 0) {
+        position -= 3;
+        return;
+      }
+      return fromCharCode(a, b, c);
+    }
+  } else {
+    let a = src[position++];
+    let b = src[position++];
+    let c = src[position++];
+    let d = src[position++];
+    if ((a & 128) > 0 || (b & 128) > 0 || (c & 128) > 0 || (d & 128) > 0) {
+      position -= 4;
+      return;
+    }
+    if (length < 6) {
+      if (length === 4)
+        return fromCharCode(a, b, c, d);
+      else {
+        let e = src[position++];
+        if ((e & 128) > 0) {
+          position -= 5;
+          return;
+        }
+        return fromCharCode(a, b, c, d, e);
+      }
+    } else if (length < 8) {
+      let e = src[position++];
+      let f = src[position++];
+      if ((e & 128) > 0 || (f & 128) > 0) {
+        position -= 6;
+        return;
+      }
+      if (length < 7)
+        return fromCharCode(a, b, c, d, e, f);
+      let g = src[position++];
+      if ((g & 128) > 0) {
+        position -= 7;
+        return;
+      }
+      return fromCharCode(a, b, c, d, e, f, g);
+    } else {
+      let e = src[position++];
+      let f = src[position++];
+      let g = src[position++];
+      let h = src[position++];
+      if ((e & 128) > 0 || (f & 128) > 0 || (g & 128) > 0 || (h & 128) > 0) {
+        position -= 8;
+        return;
+      }
+      if (length < 10) {
+        if (length === 8)
+          return fromCharCode(a, b, c, d, e, f, g, h);
+        else {
+          let i = src[position++];
+          if ((i & 128) > 0) {
+            position -= 9;
+            return;
+          }
+          return fromCharCode(a, b, c, d, e, f, g, h, i);
+        }
+      } else if (length < 12) {
+        let i = src[position++];
+        let j = src[position++];
+        if ((i & 128) > 0 || (j & 128) > 0) {
+          position -= 10;
+          return;
+        }
+        if (length < 11)
+          return fromCharCode(a, b, c, d, e, f, g, h, i, j);
+        let k = src[position++];
+        if ((k & 128) > 0) {
+          position -= 11;
+          return;
+        }
+        return fromCharCode(a, b, c, d, e, f, g, h, i, j, k);
+      } else {
+        let i = src[position++];
+        let j = src[position++];
+        let k = src[position++];
+        let l = src[position++];
+        if ((i & 128) > 0 || (j & 128) > 0 || (k & 128) > 0 || (l & 128) > 0) {
+          position -= 12;
+          return;
+        }
+        if (length < 14) {
+          if (length === 12)
+            return fromCharCode(a, b, c, d, e, f, g, h, i, j, k, l);
+          else {
+            let m = src[position++];
+            if ((m & 128) > 0) {
+              position -= 13;
+              return;
+            }
+            return fromCharCode(a, b, c, d, e, f, g, h, i, j, k, l, m);
+          }
+        } else {
+          let m = src[position++];
+          let n = src[position++];
+          if ((m & 128) > 0 || (n & 128) > 0) {
+            position -= 14;
+            return;
+          }
+          if (length < 15)
+            return fromCharCode(a, b, c, d, e, f, g, h, i, j, k, l, m, n);
+          let o = src[position++];
+          if ((o & 128) > 0) {
+            position -= 15;
+            return;
+          }
+          return fromCharCode(a, b, c, d, e, f, g, h, i, j, k, l, m, n, o);
+        }
+      }
+    }
+  }
+}
+function readBin(length) {
+  return currentDecoder.copyBuffers ? (
+    // specifically use the copying slice (not the node one)
+    Uint8Array.prototype.slice.call(src, position, position += length)
+  ) : src.subarray(position, position += length);
+}
+var f32Array = new Float32Array(1);
+var u8Array = new Uint8Array(f32Array.buffer, 0, 4);
+function getFloat16() {
+  let byte0 = src[position++];
+  let byte1 = src[position++];
+  let exponent = (byte0 & 127) >> 2;
+  if (exponent === 31) {
+    if (byte1 || byte0 & 3)
+      return NaN;
+    return byte0 & 128 ? -Infinity : Infinity;
+  }
+  if (exponent === 0) {
+    let abs = ((byte0 & 3) << 8 | byte1) / (1 << 24);
+    return byte0 & 128 ? -abs : abs;
+  }
+  u8Array[3] = byte0 & 128 | // sign bit
+  (exponent >> 1) + 56;
+  u8Array[2] = (byte0 & 7) << 5 | // last exponent bit and first two mantissa bits
+  byte1 >> 3;
+  u8Array[1] = byte1 << 5;
+  u8Array[0] = 0;
+  return f32Array[0];
+}
+var keyCache = new Array(4096);
+var Tag = class {
+  constructor(value, tag) {
+    this.value = value;
+    this.tag = tag;
+  }
+};
+currentExtensions[0] = (dateString) => {
+  return new Date(dateString);
+};
+currentExtensions[1] = (epochSec) => {
+  return new Date(Math.round(epochSec * 1e3));
+};
+currentExtensions[2] = (buffer) => {
+  let value = BigInt(0);
+  for (let i = 0, l = buffer.byteLength; i < l; i++) {
+    value = BigInt(buffer[i]) + (value << BigInt(8));
+  }
+  return value;
+};
+currentExtensions[3] = (buffer) => {
+  return BigInt(-1) - currentExtensions[2](buffer);
+};
+currentExtensions[4] = (fraction) => {
+  return +(fraction[1] + "e" + fraction[0]);
+};
+currentExtensions[5] = (fraction) => {
+  return fraction[1] * Math.exp(fraction[0] * Math.log(2));
+};
+var recordDefinition = (id, structure) => {
+  id = id - 57344;
+  let existingStructure = currentStructures[id];
+  if (existingStructure && existingStructure.isShared) {
+    (currentStructures.restoreStructures || (currentStructures.restoreStructures = []))[id] = existingStructure;
+  }
+  currentStructures[id] = structure;
+  structure.read = createStructureReader(structure);
+};
+currentExtensions[LEGACY_RECORD_INLINE_ID] = (data) => {
+  let length = data.length;
+  let structure = data[1];
+  recordDefinition(data[0], structure);
+  let object = {};
+  for (let i = 2; i < length; i++) {
+    let key = structure[i - 2];
+    object[safeKey(key)] = data[i];
+  }
+  return object;
+};
+currentExtensions[14] = (value) => {
+  if (bundledStrings)
+    return bundledStrings[0].slice(bundledStrings.position0, bundledStrings.position0 += value);
+  return new Tag(value, 14);
+};
+currentExtensions[15] = (value) => {
+  if (bundledStrings)
+    return bundledStrings[1].slice(bundledStrings.position1, bundledStrings.position1 += value);
+  return new Tag(value, 15);
+};
+var glbl = { Error, RegExp };
+currentExtensions[27] = (data) => {
+  return (glbl[data[0]] || Error)(data[1], data[2]);
+};
+var packedTable = (read2) => {
+  if (src[position++] != 132) {
+    let error = new Error("Packed values structure must be followed by a 4 element array");
+    if (src.length < position)
+      error.incomplete = true;
+    throw error;
+  }
+  let newPackedValues = read2();
+  if (!newPackedValues || !newPackedValues.length) {
+    let error = new Error("Packed values structure must be followed by a 4 element array");
+    error.incomplete = true;
+    throw error;
+  }
+  packedValues = packedValues ? newPackedValues.concat(packedValues.slice(newPackedValues.length)) : newPackedValues;
+  packedValues.prefixes = read2();
+  packedValues.suffixes = read2();
+  return read2();
+};
+packedTable.handlesRead = true;
+currentExtensions[51] = packedTable;
+currentExtensions[PACKED_REFERENCE_TAG_ID] = (data) => {
+  if (!packedValues) {
+    if (currentDecoder.getShared)
+      loadShared();
+    else
+      return new Tag(data, PACKED_REFERENCE_TAG_ID);
+  }
+  if (typeof data == "number")
+    return packedValues[16 + (data >= 0 ? 2 * data : -2 * data - 1)];
+  let error = new Error("No support for non-integer packed references yet");
+  if (data === void 0)
+    error.incomplete = true;
+  throw error;
+};
+currentExtensions[28] = (read2) => {
+  if (!referenceMap) {
+    referenceMap = /* @__PURE__ */ new Map();
+    referenceMap.id = 0;
+  }
+  let id = referenceMap.id++;
+  let startingPosition = position;
+  let token = src[position];
+  let target2;
+  if (token >> 5 == 4)
+    target2 = [];
+  else
+    target2 = {};
+  let refEntry = { target: target2 };
+  referenceMap.set(id, refEntry);
+  let targetProperties = read2();
+  if (refEntry.used) {
+    if (Object.getPrototypeOf(target2) !== Object.getPrototypeOf(targetProperties)) {
+      position = startingPosition;
+      target2 = targetProperties;
+      referenceMap.set(id, { target: target2 });
+      targetProperties = read2();
+    }
+    return Object.assign(target2, targetProperties);
+  }
+  refEntry.target = targetProperties;
+  return targetProperties;
+};
+currentExtensions[28].handlesRead = true;
+currentExtensions[29] = (id) => {
+  let refEntry = referenceMap.get(id);
+  refEntry.used = true;
+  return refEntry.target;
+};
+currentExtensions[258] = (array) => new Set(array);
+(currentExtensions[259] = (read2) => {
+  if (currentDecoder.mapsAsObjects) {
+    currentDecoder.mapsAsObjects = false;
+    restoreMapsAsObject = true;
+  }
+  return read2();
+}).handlesRead = true;
+function combine(a, b) {
+  if (typeof a === "string")
+    return a + b;
+  if (a instanceof Array)
+    return a.concat(b);
+  return Object.assign({}, a, b);
+}
+function getPackedValues() {
+  if (!packedValues) {
+    if (currentDecoder.getShared)
+      loadShared();
+    else
+      throw new Error("No packed values available");
+  }
+  return packedValues;
+}
+var SHARED_DATA_TAG_ID = 1399353956;
+currentExtensionRanges.push((tag, input) => {
+  if (tag >= 225 && tag <= 255)
+    return combine(getPackedValues().prefixes[tag - 224], input);
+  if (tag >= 28704 && tag <= 32767)
+    return combine(getPackedValues().prefixes[tag - 28672], input);
+  if (tag >= 1879052288 && tag <= 2147483647)
+    return combine(getPackedValues().prefixes[tag - 1879048192], input);
+  if (tag >= 216 && tag <= 223)
+    return combine(input, getPackedValues().suffixes[tag - 216]);
+  if (tag >= 27647 && tag <= 28671)
+    return combine(input, getPackedValues().suffixes[tag - 27639]);
+  if (tag >= 1811940352 && tag <= 1879048191)
+    return combine(input, getPackedValues().suffixes[tag - 1811939328]);
+  if (tag == SHARED_DATA_TAG_ID) {
+    return {
+      packedValues,
+      structures: currentStructures.slice(0),
+      version: input
+    };
+  }
+  if (tag == 55799)
+    return input;
+});
+var isLittleEndianMachine = new Uint8Array(new Uint16Array([1]).buffer)[0] == 1;
+var typedArrays = [
+  Uint8Array,
+  Uint8ClampedArray,
+  Uint16Array,
+  Uint32Array,
+  typeof BigUint64Array == "undefined" ? { name: "BigUint64Array" } : BigUint64Array,
+  Int8Array,
+  Int16Array,
+  Int32Array,
+  typeof BigInt64Array == "undefined" ? { name: "BigInt64Array" } : BigInt64Array,
+  Float32Array,
+  Float64Array
+];
+var typedArrayTags = [64, 68, 69, 70, 71, 72, 77, 78, 79, 85, 86];
+for (let i = 0; i < typedArrays.length; i++) {
+  registerTypedArray(typedArrays[i], typedArrayTags[i]);
+}
+function registerTypedArray(TypedArray, tag) {
+  let dvMethod = "get" + TypedArray.name.slice(0, -5);
+  let bytesPerElement;
+  if (typeof TypedArray === "function")
+    bytesPerElement = TypedArray.BYTES_PER_ELEMENT;
+  else
+    TypedArray = null;
+  for (let littleEndian = 0; littleEndian < 2; littleEndian++) {
+    if (!littleEndian && bytesPerElement == 1)
+      continue;
+    let sizeShift = bytesPerElement == 2 ? 1 : bytesPerElement == 4 ? 2 : bytesPerElement == 8 ? 3 : 0;
+    currentExtensions[littleEndian ? tag : tag - 4] = bytesPerElement == 1 || littleEndian == isLittleEndianMachine ? (buffer) => {
+      if (!TypedArray)
+        throw new Error("Could not find typed array for code " + tag);
+      if (!currentDecoder.copyBuffers) {
+        if (bytesPerElement === 1 || bytesPerElement === 2 && !(buffer.byteOffset & 1) || bytesPerElement === 4 && !(buffer.byteOffset & 3) || bytesPerElement === 8 && !(buffer.byteOffset & 7))
+          return new TypedArray(buffer.buffer, buffer.byteOffset, buffer.byteLength >> sizeShift);
+      }
+      return new TypedArray(Uint8Array.prototype.slice.call(buffer, 0).buffer);
+    } : (buffer) => {
+      if (!TypedArray)
+        throw new Error("Could not find typed array for code " + tag);
+      let dv = new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+      let elements = buffer.length >> sizeShift;
+      let ta = new TypedArray(elements);
+      let method = dv[dvMethod];
+      for (let i = 0; i < elements; i++) {
+        ta[i] = method.call(dv, i << sizeShift, littleEndian);
+      }
+      return ta;
+    };
+  }
+}
+function readBundleExt() {
+  let length = readJustLength();
+  let bundlePosition = position + read();
+  for (let i = 2; i < length; i++) {
+    let bundleLength = readJustLength();
+    position += bundleLength;
+  }
+  let dataPosition = position;
+  position = bundlePosition;
+  bundledStrings = [readStringJS(readJustLength()), readStringJS(readJustLength())];
+  bundledStrings.position0 = 0;
+  bundledStrings.position1 = 0;
+  bundledStrings.postBundlePosition = position;
+  position = dataPosition;
+  return read();
+}
+function readJustLength() {
+  let token = src[position++] & 31;
+  if (token > 23) {
+    switch (token) {
+      case 24:
+        token = src[position++];
+        break;
+      case 25:
+        token = dataView.getUint16(position);
+        position += 2;
+        break;
+      case 26:
+        token = dataView.getUint32(position);
+        position += 4;
+        break;
+    }
+  }
+  return token;
+}
+function loadShared() {
+  if (currentDecoder.getShared) {
+    let sharedData = saveState(() => {
+      src = null;
+      return currentDecoder.getShared();
+    }) || {};
+    let updatedStructures = sharedData.structures || [];
+    currentDecoder.sharedVersion = sharedData.version;
+    packedValues = currentDecoder.sharedValues = sharedData.packedValues;
+    if (currentStructures === true)
+      currentDecoder.structures = currentStructures = updatedStructures;
+    else
+      currentStructures.splice.apply(currentStructures, [0, updatedStructures.length].concat(updatedStructures));
+  }
+}
+function saveState(callback) {
+  let savedSrcEnd = srcEnd;
+  let savedPosition = position;
+  let savedStringPosition = stringPosition;
+  let savedSrcStringStart = srcStringStart;
+  let savedSrcStringEnd = srcStringEnd;
+  let savedSrcString = srcString;
+  let savedStrings = strings;
+  let savedReferenceMap = referenceMap;
+  let savedBundledStrings = bundledStrings;
+  let savedSrc = new Uint8Array(src.slice(0, srcEnd));
+  let savedStructures = currentStructures;
+  let savedDecoder = currentDecoder;
+  let savedSequentialMode = sequentialMode;
+  let value = callback();
+  srcEnd = savedSrcEnd;
+  position = savedPosition;
+  stringPosition = savedStringPosition;
+  srcStringStart = savedSrcStringStart;
+  srcStringEnd = savedSrcStringEnd;
+  srcString = savedSrcString;
+  strings = savedStrings;
+  referenceMap = savedReferenceMap;
+  bundledStrings = savedBundledStrings;
+  src = savedSrc;
+  sequentialMode = savedSequentialMode;
+  currentStructures = savedStructures;
+  currentDecoder = savedDecoder;
+  dataView = new DataView(src.buffer, src.byteOffset, src.byteLength);
+  return value;
+}
+function clearSource() {
+  src = null;
+  referenceMap = null;
+  currentStructures = null;
+}
+var mult10 = new Array(147);
+for (let i = 0; i < 256; i++) {
+  mult10[i] = +("1e" + Math.floor(45.15 - i * 0.30103));
+}
+var defaultDecoder = new Decoder({ useRecords: false });
+var decode = defaultDecoder.decode;
+var decodeMultiple = defaultDecoder.decodeMultiple;
+var FLOAT32_OPTIONS = {
+  NEVER: 0,
+  ALWAYS: 1,
+  DECIMAL_ROUND: 3,
+  DECIMAL_FIT: 4
+};
+
+// node_modules/cbor-x/encode.js
+var textEncoder;
+try {
+  textEncoder = new TextEncoder();
+} catch (error) {
+}
+var extensions;
+var extensionClasses;
+var Buffer2 = typeof globalThis === "object" && globalThis.Buffer;
+var hasNodeBuffer = typeof Buffer2 !== "undefined";
+var ByteArrayAllocate = hasNodeBuffer ? Buffer2.allocUnsafeSlow : Uint8Array;
+var ByteArray = hasNodeBuffer ? Buffer2 : Uint8Array;
+var MAX_STRUCTURES = 256;
+var MAX_BUFFER_SIZE = hasNodeBuffer ? 4294967296 : 2144337920;
+var throwOnIterable;
+var target;
+var targetView;
+var position2 = 0;
+var safeEnd;
+var bundledStrings2 = null;
+var MAX_BUNDLE_SIZE = 61440;
+var hasNonLatin = /[\u0080-\uFFFF]/;
+var RECORD_SYMBOL = /* @__PURE__ */ Symbol("record-id");
+var Encoder = class extends Decoder {
+  constructor(options) {
+    super(options);
+    this.offset = 0;
+    let typeBuffer;
+    let start;
+    let sharedStructures;
+    let hasSharedUpdate;
+    let structures;
+    let referenceMap2;
+    options = options || {};
+    let encodeUtf8 = ByteArray.prototype.utf8Write ? function(string, position3) {
+      return target.utf8Write(string, position3, target.byteLength - position3);
+    } : textEncoder && textEncoder.encodeInto ? function(string, position3) {
+      return textEncoder.encodeInto(string, target.subarray(position3)).written;
+    } : false;
+    let encoder2 = this;
+    let hasSharedStructures = options.structures || options.saveStructures;
+    let maxSharedStructures = options.maxSharedStructures;
+    if (maxSharedStructures == null)
+      maxSharedStructures = hasSharedStructures ? 128 : 0;
+    if (maxSharedStructures > 8190)
+      throw new Error("Maximum maxSharedStructure is 8190");
+    let isSequential = options.sequential;
+    if (isSequential) {
+      maxSharedStructures = 0;
+    }
+    if (!this.structures)
+      this.structures = [];
+    if (this.saveStructures)
+      this.saveShared = this.saveStructures;
+    let samplingPackedValues, packedObjectMap2, sharedValues = options.sharedValues;
+    let sharedPackedObjectMap2;
+    if (sharedValues) {
+      sharedPackedObjectMap2 = /* @__PURE__ */ Object.create(null);
+      for (let i = 0, l = sharedValues.length; i < l; i++) {
+        sharedPackedObjectMap2[sharedValues[i]] = i;
+      }
+    }
+    let recordIdsToRemove = [];
+    let transitionsCount = 0;
+    let serializationsSinceTransitionRebuild = 0;
+    this.mapEncode = function(value, encodeOptions) {
+      if (this._keyMap && !this._mapped) {
+        switch (value.constructor.name) {
+          case "Array":
+            value = value.map((r) => this.encodeKeys(r));
+            break;
+        }
+      }
+      return this.encode(value, encodeOptions);
+    };
+    this.encode = function(value, encodeOptions) {
+      if (!target) {
+        target = new ByteArrayAllocate(8192);
+        targetView = new DataView(target.buffer, 0, 8192);
+        position2 = 0;
+      }
+      safeEnd = target.length - 10;
+      if (safeEnd - position2 < 2048) {
+        target = new ByteArrayAllocate(target.length);
+        targetView = new DataView(target.buffer, 0, target.length);
+        safeEnd = target.length - 10;
+        position2 = 0;
+      } else if (encodeOptions === REUSE_BUFFER_MODE)
+        position2 = position2 + 7 & 2147483640;
+      start = position2;
+      if (encoder2.useSelfDescribedHeader) {
+        targetView.setUint32(position2, 3654940416);
+        position2 += 3;
+      }
+      referenceMap2 = encoder2.structuredClone ? /* @__PURE__ */ new Map() : null;
+      if (encoder2.bundleStrings && typeof value !== "string") {
+        bundledStrings2 = [];
+        bundledStrings2.size = Infinity;
+      } else
+        bundledStrings2 = null;
+      sharedStructures = encoder2.structures;
+      if (sharedStructures) {
+        if (sharedStructures.uninitialized) {
+          let sharedData = encoder2.getShared() || {};
+          encoder2.structures = sharedStructures = sharedData.structures || [];
+          encoder2.sharedVersion = sharedData.version;
+          let sharedValues2 = encoder2.sharedValues = sharedData.packedValues;
+          if (sharedValues2) {
+            sharedPackedObjectMap2 = {};
+            for (let i = 0, l = sharedValues2.length; i < l; i++)
+              sharedPackedObjectMap2[sharedValues2[i]] = i;
+          }
+        }
+        let sharedStructuresLength = sharedStructures.length;
+        if (sharedStructuresLength > maxSharedStructures && !isSequential)
+          sharedStructuresLength = maxSharedStructures;
+        if (!sharedStructures.transitions) {
+          sharedStructures.transitions = /* @__PURE__ */ Object.create(null);
+          for (let i = 0; i < sharedStructuresLength; i++) {
+            let keys = sharedStructures[i];
+            if (!keys)
+              continue;
+            let nextTransition, transition = sharedStructures.transitions;
+            for (let j = 0, l = keys.length; j < l; j++) {
+              if (transition[RECORD_SYMBOL] === void 0)
+                transition[RECORD_SYMBOL] = i;
+              let key = keys[j];
+              nextTransition = transition[key];
+              if (!nextTransition) {
+                nextTransition = transition[key] = /* @__PURE__ */ Object.create(null);
+              }
+              transition = nextTransition;
+            }
+            transition[RECORD_SYMBOL] = i | 1048576;
+          }
+        }
+        if (!isSequential)
+          sharedStructures.nextId = sharedStructuresLength;
+      }
+      if (hasSharedUpdate)
+        hasSharedUpdate = false;
+      structures = sharedStructures || [];
+      packedObjectMap2 = sharedPackedObjectMap2;
+      if (options.pack) {
+        let packedValues2 = /* @__PURE__ */ new Map();
+        packedValues2.values = [];
+        packedValues2.encoder = encoder2;
+        packedValues2.maxValues = options.maxPrivatePackedValues || (sharedPackedObjectMap2 ? 16 : Infinity);
+        packedValues2.objectMap = sharedPackedObjectMap2 || false;
+        packedValues2.samplingPackedValues = samplingPackedValues;
+        findRepetitiveStrings(value, packedValues2);
+        if (packedValues2.values.length > 0) {
+          target[position2++] = 216;
+          target[position2++] = 51;
+          writeArrayHeader(4);
+          let valuesArray = packedValues2.values;
+          encode2(valuesArray);
+          writeArrayHeader(0);
+          writeArrayHeader(0);
+          packedObjectMap2 = Object.create(sharedPackedObjectMap2 || null);
+          for (let i = 0, l = valuesArray.length; i < l; i++) {
+            packedObjectMap2[valuesArray[i]] = i;
+          }
+        }
+      }
+      throwOnIterable = encodeOptions & THROW_ON_ITERABLE;
+      try {
+        if (throwOnIterable)
+          return;
+        encode2(value);
+        if (bundledStrings2) {
+          writeBundles(start, encode2);
+        }
+        encoder2.offset = position2;
+        if (referenceMap2 && referenceMap2.idsToInsert) {
+          position2 += referenceMap2.idsToInsert.length * 2;
+          if (position2 > safeEnd)
+            makeRoom(position2);
+          encoder2.offset = position2;
+          let serialized = insertIds(target.subarray(start, position2), referenceMap2.idsToInsert);
+          referenceMap2 = null;
+          return serialized;
+        }
+        if (encodeOptions & REUSE_BUFFER_MODE) {
+          target.start = start;
+          target.end = position2;
+          return target;
+        }
+        return target.subarray(start, position2);
+      } finally {
+        if (sharedStructures) {
+          if (serializationsSinceTransitionRebuild < 10)
+            serializationsSinceTransitionRebuild++;
+          if (sharedStructures.length > maxSharedStructures)
+            sharedStructures.length = maxSharedStructures;
+          if (transitionsCount > 1e4) {
+            sharedStructures.transitions = null;
+            serializationsSinceTransitionRebuild = 0;
+            transitionsCount = 0;
+            if (recordIdsToRemove.length > 0)
+              recordIdsToRemove = [];
+          } else if (recordIdsToRemove.length > 0 && !isSequential) {
+            for (let i = 0, l = recordIdsToRemove.length; i < l; i++) {
+              recordIdsToRemove[i][RECORD_SYMBOL] = void 0;
+            }
+            recordIdsToRemove = [];
+          }
+        }
+        if (hasSharedUpdate && encoder2.saveShared) {
+          if (encoder2.structures.length > maxSharedStructures) {
+            encoder2.structures = encoder2.structures.slice(0, maxSharedStructures);
+          }
+          let returnBuffer = target.subarray(start, position2);
+          if (encoder2.updateSharedData() === false)
+            return encoder2.encode(value);
+          return returnBuffer;
+        }
+        if (encodeOptions & RESET_BUFFER_MODE)
+          position2 = start;
+      }
+    };
+    this.findCommonStringsToPack = () => {
+      samplingPackedValues = /* @__PURE__ */ new Map();
+      if (!sharedPackedObjectMap2)
+        sharedPackedObjectMap2 = /* @__PURE__ */ Object.create(null);
+      return (options2) => {
+        let threshold = options2 && options2.threshold || 4;
+        let position3 = this.pack ? options2.maxPrivatePackedValues || 16 : 0;
+        if (!sharedValues)
+          sharedValues = this.sharedValues = [];
+        for (let [key, status] of samplingPackedValues) {
+          if (status.count > threshold) {
+            sharedPackedObjectMap2[key] = position3++;
+            sharedValues.push(key);
+            hasSharedUpdate = true;
+          }
+        }
+        while (this.saveShared && this.updateSharedData() === false) {
+        }
+        samplingPackedValues = null;
+      };
+    };
+    const encode2 = (value) => {
+      if (position2 > safeEnd)
+        target = makeRoom(position2);
+      var type = typeof value;
+      var length;
+      if (type === "string") {
+        if (packedObjectMap2) {
+          let packedPosition = packedObjectMap2[value];
+          if (packedPosition >= 0) {
+            if (packedPosition < 16)
+              target[position2++] = packedPosition + 224;
+            else {
+              target[position2++] = 198;
+              if (packedPosition & 1)
+                encode2(15 - packedPosition >> 1);
+              else
+                encode2(packedPosition - 16 >> 1);
+            }
+            return;
+          } else if (samplingPackedValues && !options.pack) {
+            let status = samplingPackedValues.get(value);
+            if (status)
+              status.count++;
+            else
+              samplingPackedValues.set(value, {
+                count: 1
+              });
+          }
+        }
+        let strLength = value.length;
+        if (bundledStrings2 && strLength >= 4 && strLength < 1024) {
+          if ((bundledStrings2.size += strLength) > MAX_BUNDLE_SIZE) {
+            let extStart;
+            let maxBytes2 = (bundledStrings2[0] ? bundledStrings2[0].length * 3 + bundledStrings2[1].length : 0) + 10;
+            if (position2 + maxBytes2 > safeEnd)
+              target = makeRoom(position2 + maxBytes2);
+            target[position2++] = 217;
+            target[position2++] = 223;
+            target[position2++] = 249;
+            target[position2++] = bundledStrings2.position ? 132 : 130;
+            target[position2++] = 26;
+            extStart = position2 - start;
+            position2 += 4;
+            if (bundledStrings2.position) {
+              writeBundles(start, encode2);
+            }
+            bundledStrings2 = ["", ""];
+            bundledStrings2.size = 0;
+            bundledStrings2.position = extStart;
+          }
+          let twoByte = hasNonLatin.test(value);
+          bundledStrings2[twoByte ? 0 : 1] += value;
+          target[position2++] = twoByte ? 206 : 207;
+          encode2(strLength);
+          return;
+        }
+        let headerSize;
+        if (strLength < 32) {
+          headerSize = 1;
+        } else if (strLength < 256) {
+          headerSize = 2;
+        } else if (strLength < 65536) {
+          headerSize = 3;
+        } else {
+          headerSize = 5;
+        }
+        let maxBytes = strLength * 3;
+        if (position2 + maxBytes > safeEnd)
+          target = makeRoom(position2 + maxBytes);
+        if (strLength < 64 || !encodeUtf8) {
+          let i, c1, c2, strPosition = position2 + headerSize;
+          for (i = 0; i < strLength; i++) {
+            c1 = value.charCodeAt(i);
+            if (c1 < 128) {
+              target[strPosition++] = c1;
+            } else if (c1 < 2048) {
+              target[strPosition++] = c1 >> 6 | 192;
+              target[strPosition++] = c1 & 63 | 128;
+            } else if ((c1 & 64512) === 55296 && ((c2 = value.charCodeAt(i + 1)) & 64512) === 56320) {
+              c1 = 65536 + ((c1 & 1023) << 10) + (c2 & 1023);
+              i++;
+              target[strPosition++] = c1 >> 18 | 240;
+              target[strPosition++] = c1 >> 12 & 63 | 128;
+              target[strPosition++] = c1 >> 6 & 63 | 128;
+              target[strPosition++] = c1 & 63 | 128;
+            } else {
+              target[strPosition++] = c1 >> 12 | 224;
+              target[strPosition++] = c1 >> 6 & 63 | 128;
+              target[strPosition++] = c1 & 63 | 128;
+            }
+          }
+          length = strPosition - position2 - headerSize;
+        } else {
+          length = encodeUtf8(value, position2 + headerSize, maxBytes);
+        }
+        if (length < 24) {
+          target[position2++] = 96 | length;
+        } else if (length < 256) {
+          if (headerSize < 2) {
+            target.copyWithin(position2 + 2, position2 + 1, position2 + 1 + length);
+          }
+          target[position2++] = 120;
+          target[position2++] = length;
+        } else if (length < 65536) {
+          if (headerSize < 3) {
+            target.copyWithin(position2 + 3, position2 + 2, position2 + 2 + length);
+          }
+          target[position2++] = 121;
+          target[position2++] = length >> 8;
+          target[position2++] = length & 255;
+        } else {
+          if (headerSize < 5) {
+            target.copyWithin(position2 + 5, position2 + 3, position2 + 3 + length);
+          }
+          target[position2++] = 122;
+          targetView.setUint32(position2, length);
+          position2 += 4;
+        }
+        position2 += length;
+      } else if (type === "number") {
+        if (!this.alwaysUseFloat && value >>> 0 === value) {
+          if (value < 24) {
+            target[position2++] = value;
+          } else if (value < 256) {
+            target[position2++] = 24;
+            target[position2++] = value;
+          } else if (value < 65536) {
+            target[position2++] = 25;
+            target[position2++] = value >> 8;
+            target[position2++] = value & 255;
+          } else {
+            target[position2++] = 26;
+            targetView.setUint32(position2, value);
+            position2 += 4;
+          }
+        } else if (!this.alwaysUseFloat && value >> 0 === value) {
+          if (value >= -24) {
+            target[position2++] = 31 - value;
+          } else if (value >= -256) {
+            target[position2++] = 56;
+            target[position2++] = ~value;
+          } else if (value >= -65536) {
+            target[position2++] = 57;
+            targetView.setUint16(position2, ~value);
+            position2 += 2;
+          } else {
+            target[position2++] = 58;
+            targetView.setUint32(position2, ~value);
+            position2 += 4;
+          }
+        } else if (!this.alwaysUseFloat && value < 0 && value >= -4294967296 && Math.floor(value) === value) {
+          target[position2++] = 58;
+          targetView.setUint32(position2, -1 - value);
+          position2 += 4;
+        } else {
+          let useFloat32;
+          if ((useFloat32 = this.useFloat32) > 0 && value < 4294967296 && value >= -2147483648) {
+            target[position2++] = 250;
+            targetView.setFloat32(position2, value);
+            let xShifted;
+            if (useFloat32 < 4 || // this checks for rounding of numbers that were encoded in 32-bit float to nearest significant decimal digit that could be preserved
+            (xShifted = value * mult10[(target[position2] & 127) << 1 | target[position2 + 1] >> 7]) >> 0 === xShifted) {
+              position2 += 4;
+              return;
+            } else
+              position2--;
+          }
+          target[position2++] = 251;
+          targetView.setFloat64(position2, value);
+          position2 += 8;
+        }
+      } else if (type === "object") {
+        if (!value)
+          target[position2++] = 246;
+        else {
+          if (referenceMap2) {
+            let referee = referenceMap2.get(value);
+            if (referee) {
+              target[position2++] = 216;
+              target[position2++] = 29;
+              target[position2++] = 25;
+              if (!referee.references) {
+                let idsToInsert = referenceMap2.idsToInsert || (referenceMap2.idsToInsert = []);
+                referee.references = [];
+                idsToInsert.push(referee);
+              }
+              referee.references.push(position2 - start);
+              position2 += 2;
+              return;
+            } else
+              referenceMap2.set(value, { offset: position2 - start });
+          }
+          let constructor = value.constructor;
+          if (constructor === Object) {
+            if (this.skipFunction === true) {
+              value = Object.fromEntries([...Object.keys(value).filter((x) => typeof value[x] !== "function").map((x) => [x, value[x]])]);
+            }
+            writeObject(value);
+          } else if (constructor === Array) {
+            length = value.length;
+            if (length < 24) {
+              target[position2++] = 128 | length;
+            } else {
+              writeArrayHeader(length);
+            }
+            for (let i = 0; i < length; i++) {
+              encode2(value[i]);
+            }
+          } else if (constructor === Map) {
+            if (this.mapsAsObjects ? this.useTag259ForMaps !== false : this.useTag259ForMaps) {
+              target[position2++] = 217;
+              target[position2++] = 1;
+              target[position2++] = 3;
+            }
+            length = value.size;
+            if (length < 24) {
+              target[position2++] = 160 | length;
+            } else if (length < 256) {
+              target[position2++] = 184;
+              target[position2++] = length;
+            } else if (length < 65536) {
+              target[position2++] = 185;
+              target[position2++] = length >> 8;
+              target[position2++] = length & 255;
+            } else {
+              target[position2++] = 186;
+              targetView.setUint32(position2, length);
+              position2 += 4;
+            }
+            if (encoder2.keyMap) {
+              for (let [key, entryValue] of value) {
+                encode2(encoder2.encodeKey(key));
+                encode2(entryValue);
+              }
+            } else {
+              for (let [key, entryValue] of value) {
+                encode2(key);
+                encode2(entryValue);
+              }
+            }
+          } else {
+            for (let i = 0, l = extensions.length; i < l; i++) {
+              let extensionClass = extensionClasses[i];
+              if (value instanceof extensionClass) {
+                let extension = extensions[i];
+                let tag = extension.tag;
+                if (tag == void 0)
+                  tag = extension.getTag && extension.getTag.call(this, value);
+                if (tag < 24) {
+                  target[position2++] = 192 | tag;
+                } else if (tag < 256) {
+                  target[position2++] = 216;
+                  target[position2++] = tag;
+                } else if (tag < 65536) {
+                  target[position2++] = 217;
+                  target[position2++] = tag >> 8;
+                  target[position2++] = tag & 255;
+                } else if (tag > -1) {
+                  target[position2++] = 218;
+                  targetView.setUint32(position2, tag);
+                  position2 += 4;
+                }
+                extension.encode.call(this, value, encode2, makeRoom);
+                return;
+              }
+            }
+            if (value[Symbol.iterator]) {
+              if (throwOnIterable) {
+                let error = new Error("Iterable should be serialized as iterator");
+                error.iteratorNotHandled = true;
+                throw error;
+              }
+              target[position2++] = 159;
+              for (let entry of value) {
+                encode2(entry);
+              }
+              target[position2++] = 255;
+              return;
+            }
+            if (value[Symbol.asyncIterator] || isBlob(value)) {
+              let error = new Error("Iterable/blob should be serialized as iterator");
+              error.iteratorNotHandled = true;
+              throw error;
+            }
+            if (this.useToJSON && value.toJSON) {
+              const json = value.toJSON();
+              if (json !== value)
+                return encode2(json);
+            }
+            writeObject(value);
+          }
+        }
+      } else if (type === "boolean") {
+        target[position2++] = value ? 245 : 244;
+      } else if (type === "bigint") {
+        if (value < BigInt(1) << BigInt(64) && value >= 0) {
+          target[position2++] = 27;
+          targetView.setBigUint64(position2, value);
+        } else if (value > -(BigInt(1) << BigInt(64)) && value < 0) {
+          target[position2++] = 59;
+          targetView.setBigUint64(position2, -value - BigInt(1));
+        } else {
+          if (this.largeBigIntToFloat) {
+            target[position2++] = 251;
+            targetView.setFloat64(position2, Number(value));
+          } else {
+            if (value >= BigInt(0))
+              target[position2++] = 194;
+            else {
+              target[position2++] = 195;
+              value = BigInt(-1) - value;
+            }
+            let bytes = [];
+            while (value) {
+              bytes.push(Number(value & BigInt(255)));
+              value >>= BigInt(8);
+            }
+            writeBuffer(new Uint8Array(bytes.reverse()), makeRoom);
+            return;
+          }
+        }
+        position2 += 8;
+      } else if (type === "undefined") {
+        target[position2++] = 247;
+      } else {
+        throw new Error("Unknown type: " + type);
+      }
+    };
+    const writeObject = this.useRecords === false ? this.variableMapSize ? (object) => {
+      let keys = Object.keys(object);
+      let vals = Object.values(object);
+      let length = keys.length;
+      if (length < 24) {
+        target[position2++] = 160 | length;
+      } else if (length < 256) {
+        target[position2++] = 184;
+        target[position2++] = length;
+      } else if (length < 65536) {
+        target[position2++] = 185;
+        target[position2++] = length >> 8;
+        target[position2++] = length & 255;
+      } else {
+        target[position2++] = 186;
+        targetView.setUint32(position2, length);
+        position2 += 4;
+      }
+      let key;
+      if (encoder2.keyMap) {
+        for (let i = 0; i < length; i++) {
+          encode2(encoder2.encodeKey(keys[i]));
+          encode2(vals[i]);
+        }
+      } else {
+        for (let i = 0; i < length; i++) {
+          encode2(keys[i]);
+          encode2(vals[i]);
+        }
+      }
+    } : (object) => {
+      target[position2++] = 185;
+      let objectOffset = position2 - start;
+      position2 += 2;
+      let size = 0;
+      if (encoder2.keyMap) {
+        for (let key in object) if (typeof object.hasOwnProperty !== "function" || object.hasOwnProperty(key)) {
+          encode2(encoder2.encodeKey(key));
+          encode2(object[key]);
+          size++;
+        }
+      } else {
+        for (let key in object) if (typeof object.hasOwnProperty !== "function" || object.hasOwnProperty(key)) {
+          encode2(key);
+          encode2(object[key]);
+          size++;
+        }
+      }
+      target[objectOffset++ + start] = size >> 8;
+      target[objectOffset + start] = size & 255;
+    } : (object, skipValues) => {
+      let nextTransition, transition = structures.transitions || (structures.transitions = /* @__PURE__ */ Object.create(null));
+      let newTransitions = 0;
+      let length = 0;
+      let parentRecordId;
+      let keys;
+      if (this.keyMap) {
+        keys = Object.keys(object).map((k) => this.encodeKey(k));
+        length = keys.length;
+        for (let i = 0; i < length; i++) {
+          let key = keys[i];
+          nextTransition = transition[key];
+          if (!nextTransition) {
+            nextTransition = transition[key] = /* @__PURE__ */ Object.create(null);
+            newTransitions++;
+          }
+          transition = nextTransition;
+        }
+      } else {
+        for (let key in object) if (typeof object.hasOwnProperty !== "function" || object.hasOwnProperty(key)) {
+          nextTransition = transition[key];
+          if (!nextTransition) {
+            if (transition[RECORD_SYMBOL] & 1048576) {
+              parentRecordId = transition[RECORD_SYMBOL] & 65535;
+            }
+            nextTransition = transition[key] = /* @__PURE__ */ Object.create(null);
+            newTransitions++;
+          }
+          transition = nextTransition;
+          length++;
+        }
+      }
+      let recordId = transition[RECORD_SYMBOL];
+      if (recordId !== void 0) {
+        recordId &= 65535;
+        target[position2++] = 217;
+        target[position2++] = recordId >> 8 | 224;
+        target[position2++] = recordId & 255;
+      } else {
+        if (!keys)
+          keys = transition.__keys__ || (transition.__keys__ = Object.keys(object));
+        if (parentRecordId === void 0) {
+          recordId = structures.nextId++;
+          if (!recordId) {
+            recordId = 0;
+            structures.nextId = 1;
+          }
+          if (recordId >= MAX_STRUCTURES) {
+            structures.nextId = (recordId = maxSharedStructures) + 1;
+          }
+        } else {
+          recordId = parentRecordId;
+        }
+        structures[recordId] = keys;
+        if (recordId < maxSharedStructures) {
+          target[position2++] = 217;
+          target[position2++] = recordId >> 8 | 224;
+          target[position2++] = recordId & 255;
+          transition = structures.transitions;
+          for (let i = 0; i < length; i++) {
+            if (transition[RECORD_SYMBOL] === void 0 || transition[RECORD_SYMBOL] & 1048576)
+              transition[RECORD_SYMBOL] = recordId;
+            transition = transition[keys[i]];
+          }
+          transition[RECORD_SYMBOL] = recordId | 1048576;
+          hasSharedUpdate = true;
+        } else {
+          transition[RECORD_SYMBOL] = recordId;
+          targetView.setUint32(position2, 3655335680);
+          position2 += 3;
+          if (newTransitions)
+            transitionsCount += serializationsSinceTransitionRebuild * newTransitions;
+          if (recordIdsToRemove.length >= MAX_STRUCTURES - maxSharedStructures)
+            recordIdsToRemove.shift()[RECORD_SYMBOL] = void 0;
+          recordIdsToRemove.push(transition);
+          writeArrayHeader(length + 2);
+          encode2(57344 + recordId);
+          encode2(keys);
+          if (skipValues) return;
+          for (let key in object)
+            if (typeof object.hasOwnProperty !== "function" || object.hasOwnProperty(key))
+              encode2(object[key]);
+          return;
+        }
+      }
+      if (length < 24) {
+        target[position2++] = 128 | length;
+      } else {
+        writeArrayHeader(length);
+      }
+      if (skipValues) return;
+      for (let key in object)
+        if (typeof object.hasOwnProperty !== "function" || object.hasOwnProperty(key))
+          encode2(object[key]);
+    };
+    const makeRoom = (end) => {
+      let newSize;
+      if (end > 16777216) {
+        if (end - start > MAX_BUFFER_SIZE)
+          throw new Error("Encoded buffer would be larger than maximum buffer size");
+        newSize = Math.min(
+          MAX_BUFFER_SIZE,
+          Math.round(Math.max((end - start) * (end > 67108864 ? 1.25 : 2), 4194304) / 4096) * 4096
+        );
+      } else
+        newSize = (Math.max(end - start << 2, target.length - 1) >> 12) + 1 << 12;
+      let newBuffer = new ByteArrayAllocate(newSize);
+      targetView = new DataView(newBuffer.buffer, 0, newSize);
+      if (target.copy)
+        target.copy(newBuffer, 0, start, end);
+      else
+        newBuffer.set(target.slice(start, end));
+      position2 -= start;
+      start = 0;
+      safeEnd = newBuffer.length - 10;
+      return target = newBuffer;
+    };
+    let chunkThreshold = 100;
+    let continuedChunkThreshold = 1e3;
+    this.encodeAsIterable = function(value, options2) {
+      return startEncoding(value, options2, encodeObjectAsIterable);
+    };
+    this.encodeAsAsyncIterable = function(value, options2) {
+      return startEncoding(value, options2, encodeObjectAsAsyncIterable);
+    };
+    function* encodeObjectAsIterable(object, iterateProperties, finalIterable) {
+      let constructor = object.constructor;
+      if (constructor === Object) {
+        let useRecords = encoder2.useRecords !== false;
+        if (useRecords)
+          writeObject(object, true);
+        else
+          writeEntityLength(Object.keys(object).length, 160);
+        for (let key in object) {
+          let value = object[key];
+          if (!useRecords) encode2(key);
+          if (value && typeof value === "object") {
+            if (iterateProperties[key])
+              yield* encodeObjectAsIterable(value, iterateProperties[key]);
+            else
+              yield* tryEncode(value, iterateProperties, key);
+          } else encode2(value);
+        }
+      } else if (constructor === Array) {
+        let length = object.length;
+        writeArrayHeader(length);
+        for (let i = 0; i < length; i++) {
+          let value = object[i];
+          if (value && (typeof value === "object" || position2 - start > chunkThreshold)) {
+            if (iterateProperties.element)
+              yield* encodeObjectAsIterable(value, iterateProperties.element);
+            else
+              yield* tryEncode(value, iterateProperties, "element");
+          } else encode2(value);
+        }
+      } else if (object[Symbol.iterator] && !object.buffer) {
+        target[position2++] = 159;
+        for (let value of object) {
+          if (value && (typeof value === "object" || position2 - start > chunkThreshold)) {
+            if (iterateProperties.element)
+              yield* encodeObjectAsIterable(value, iterateProperties.element);
+            else
+              yield* tryEncode(value, iterateProperties, "element");
+          } else encode2(value);
+        }
+        target[position2++] = 255;
+      } else if (isBlob(object)) {
+        writeEntityLength(object.size, 64);
+        yield target.subarray(start, position2);
+        yield object;
+        restartEncoding();
+      } else if (object[Symbol.asyncIterator]) {
+        target[position2++] = 159;
+        yield target.subarray(start, position2);
+        yield object;
+        restartEncoding();
+        target[position2++] = 255;
+      } else {
+        encode2(object);
+      }
+      if (finalIterable && position2 > start) yield target.subarray(start, position2);
+      else if (position2 - start > chunkThreshold) {
+        yield target.subarray(start, position2);
+        restartEncoding();
+      }
+    }
+    function* tryEncode(value, iterateProperties, key) {
+      let restart = position2 - start;
+      try {
+        encode2(value);
+        if (position2 - start > chunkThreshold) {
+          yield target.subarray(start, position2);
+          restartEncoding();
+        }
+      } catch (error) {
+        if (error.iteratorNotHandled) {
+          iterateProperties[key] = {};
+          position2 = start + restart;
+          yield* encodeObjectAsIterable.call(this, value, iterateProperties[key]);
+        } else throw error;
+      }
+    }
+    function restartEncoding() {
+      chunkThreshold = continuedChunkThreshold;
+      encoder2.encode(null, THROW_ON_ITERABLE);
+    }
+    function startEncoding(value, options2, encodeIterable) {
+      if (options2 && options2.chunkThreshold)
+        chunkThreshold = continuedChunkThreshold = options2.chunkThreshold;
+      else
+        chunkThreshold = 100;
+      if (value && typeof value === "object") {
+        encoder2.encode(null, THROW_ON_ITERABLE);
+        return encodeIterable(value, encoder2.iterateProperties || (encoder2.iterateProperties = {}), true);
+      }
+      return [encoder2.encode(value)];
+    }
+    async function* encodeObjectAsAsyncIterable(value, iterateProperties) {
+      for (let encodedValue of encodeObjectAsIterable(value, iterateProperties, true)) {
+        let constructor = encodedValue.constructor;
+        if (constructor === ByteArray || constructor === Uint8Array)
+          yield encodedValue;
+        else if (isBlob(encodedValue)) {
+          let reader = encodedValue.stream().getReader();
+          let next;
+          while (!(next = await reader.read()).done) {
+            yield next.value;
+          }
+        } else if (encodedValue[Symbol.asyncIterator]) {
+          for await (let asyncValue of encodedValue) {
+            restartEncoding();
+            if (asyncValue)
+              yield* encodeObjectAsAsyncIterable(asyncValue, iterateProperties.async || (iterateProperties.async = {}));
+            else yield encoder2.encode(asyncValue);
+          }
+        } else {
+          yield encodedValue;
+        }
+      }
+    }
+  }
+  useBuffer(buffer) {
+    target = buffer;
+    targetView = new DataView(target.buffer, target.byteOffset, target.byteLength);
+    position2 = 0;
+  }
+  clearSharedData() {
+    if (this.structures)
+      this.structures = [];
+    if (this.sharedValues)
+      this.sharedValues = void 0;
+  }
+  updateSharedData() {
+    let lastVersion = this.sharedVersion || 0;
+    this.sharedVersion = lastVersion + 1;
+    let structuresCopy = this.structures.slice(0);
+    let sharedData = new SharedData(structuresCopy, this.sharedValues, this.sharedVersion);
+    let saveResults = this.saveShared(
+      sharedData,
+      (existingShared) => (existingShared && existingShared.version || 0) == lastVersion
+    );
+    if (saveResults === false) {
+      sharedData = this.getShared() || {};
+      this.structures = sharedData.structures || [];
+      this.sharedValues = sharedData.packedValues;
+      this.sharedVersion = sharedData.version;
+      this.structures.nextId = this.structures.length;
+    } else {
+      structuresCopy.forEach((structure, i) => this.structures[i] = structure);
+    }
+    return saveResults;
+  }
+};
+function writeEntityLength(length, majorValue) {
+  if (length < 24)
+    target[position2++] = majorValue | length;
+  else if (length < 256) {
+    target[position2++] = majorValue | 24;
+    target[position2++] = length;
+  } else if (length < 65536) {
+    target[position2++] = majorValue | 25;
+    target[position2++] = length >> 8;
+    target[position2++] = length & 255;
+  } else {
+    target[position2++] = majorValue | 26;
+    targetView.setUint32(position2, length);
+    position2 += 4;
+  }
+}
+var SharedData = class {
+  constructor(structures, values, version) {
+    this.structures = structures;
+    this.packedValues = values;
+    this.version = version;
+  }
+};
+function writeArrayHeader(length) {
+  if (length < 24)
+    target[position2++] = 128 | length;
+  else if (length < 256) {
+    target[position2++] = 152;
+    target[position2++] = length;
+  } else if (length < 65536) {
+    target[position2++] = 153;
+    target[position2++] = length >> 8;
+    target[position2++] = length & 255;
+  } else {
+    target[position2++] = 154;
+    targetView.setUint32(position2, length);
+    position2 += 4;
+  }
+}
+var BlobConstructor = typeof Blob === "undefined" ? function() {
+} : Blob;
+function isBlob(object) {
+  if (object instanceof BlobConstructor)
+    return true;
+  let tag = object[Symbol.toStringTag];
+  return tag === "Blob" || tag === "File";
+}
+function findRepetitiveStrings(value, packedValues2) {
+  switch (typeof value) {
+    case "string":
+      if (value.length > 3) {
+        if (packedValues2.objectMap[value] > -1 || packedValues2.values.length >= packedValues2.maxValues)
+          return;
+        let packedStatus = packedValues2.get(value);
+        if (packedStatus) {
+          if (++packedStatus.count == 2) {
+            packedValues2.values.push(value);
+          }
+        } else {
+          packedValues2.set(value, {
+            count: 1
+          });
+          if (packedValues2.samplingPackedValues) {
+            let status = packedValues2.samplingPackedValues.get(value);
+            if (status)
+              status.count++;
+            else
+              packedValues2.samplingPackedValues.set(value, {
+                count: 1
+              });
+          }
+        }
+      }
+      break;
+    case "object":
+      if (value) {
+        if (value instanceof Array) {
+          for (let i = 0, l = value.length; i < l; i++) {
+            findRepetitiveStrings(value[i], packedValues2);
+          }
+        } else {
+          let includeKeys = !packedValues2.encoder.useRecords;
+          for (var key in value) {
+            if (value.hasOwnProperty(key)) {
+              if (includeKeys)
+                findRepetitiveStrings(key, packedValues2);
+              findRepetitiveStrings(value[key], packedValues2);
+            }
+          }
+        }
+      }
+      break;
+    case "function":
+      console.log(value);
+  }
+}
+var isLittleEndianMachine2 = new Uint8Array(new Uint16Array([1]).buffer)[0] == 1;
+extensionClasses = [
+  Date,
+  Set,
+  Error,
+  RegExp,
+  Tag,
+  ArrayBuffer,
+  Uint8Array,
+  Uint8ClampedArray,
+  Uint16Array,
+  Uint32Array,
+  typeof BigUint64Array == "undefined" ? function() {
+  } : BigUint64Array,
+  Int8Array,
+  Int16Array,
+  Int32Array,
+  typeof BigInt64Array == "undefined" ? function() {
+  } : BigInt64Array,
+  Float32Array,
+  Float64Array,
+  SharedData
+];
+extensions = [
+  {
+    // Date
+    tag: 1,
+    encode(date, encode2) {
+      let seconds = date.getTime() / 1e3;
+      if ((this.useTimestamp32 || date.getMilliseconds() === 0) && seconds >= 0 && seconds < 4294967296) {
+        target[position2++] = 26;
+        targetView.setUint32(position2, seconds);
+        position2 += 4;
+      } else {
+        target[position2++] = 251;
+        targetView.setFloat64(position2, seconds);
+        position2 += 8;
+      }
+    }
+  },
+  {
+    // Set
+    tag: 258,
+    // https://github.com/input-output-hk/cbor-sets-spec/blob/master/CBOR_SETS.md
+    encode(set, encode2) {
+      let array = Array.from(set);
+      encode2(array);
+    }
+  },
+  {
+    // Error
+    tag: 27,
+    // http://cbor.schmorp.de/generic-object
+    encode(error, encode2) {
+      encode2([error.name, error.message]);
+    }
+  },
+  {
+    // RegExp
+    tag: 27,
+    // http://cbor.schmorp.de/generic-object
+    encode(regex, encode2) {
+      encode2(["RegExp", regex.source, regex.flags]);
+    }
+  },
+  {
+    // Tag
+    getTag(tag) {
+      return tag.tag;
+    },
+    encode(tag, encode2) {
+      encode2(tag.value);
+    }
+  },
+  {
+    // ArrayBuffer
+    encode(arrayBuffer, encode2, makeRoom) {
+      writeBuffer(arrayBuffer, makeRoom);
+    }
+  },
+  {
+    // Uint8Array
+    getTag(typedArray) {
+      if (typedArray.constructor === Uint8Array) {
+        if (this.tagUint8Array || hasNodeBuffer && this.tagUint8Array !== false)
+          return 64;
+      }
+    },
+    encode(typedArray, encode2, makeRoom) {
+      writeBuffer(typedArray, makeRoom);
+    }
+  },
+  typedArrayEncoder(68, 1),
+  typedArrayEncoder(69, 2),
+  typedArrayEncoder(70, 4),
+  typedArrayEncoder(71, 8),
+  typedArrayEncoder(72, 1),
+  typedArrayEncoder(77, 2),
+  typedArrayEncoder(78, 4),
+  typedArrayEncoder(79, 8),
+  typedArrayEncoder(85, 4),
+  typedArrayEncoder(86, 8),
+  {
+    encode(sharedData, encode2) {
+      let packedValues2 = sharedData.packedValues || [];
+      let sharedStructures = sharedData.structures || [];
+      if (packedValues2.values.length > 0) {
+        target[position2++] = 216;
+        target[position2++] = 51;
+        writeArrayHeader(4);
+        let valuesArray = packedValues2.values;
+        encode2(valuesArray);
+        writeArrayHeader(0);
+        writeArrayHeader(0);
+        packedObjectMap = Object.create(sharedPackedObjectMap || null);
+        for (let i = 0, l = valuesArray.length; i < l; i++) {
+          packedObjectMap[valuesArray[i]] = i;
+        }
+      }
+      if (sharedStructures) {
+        targetView.setUint32(position2, 3655335424);
+        position2 += 3;
+        let definitions = sharedStructures.slice(0);
+        definitions.unshift(57344);
+        definitions.push(new Tag(sharedData.version, 1399353956));
+        encode2(definitions);
+      } else
+        encode2(new Tag(sharedData.version, 1399353956));
+    }
+  }
+];
+function typedArrayEncoder(tag, size) {
+  if (!isLittleEndianMachine2 && size > 1)
+    tag -= 4;
+  return {
+    tag,
+    encode: function writeExtBuffer(typedArray, encode2) {
+      let length = typedArray.byteLength;
+      let offset = typedArray.byteOffset || 0;
+      let buffer = typedArray.buffer || typedArray;
+      encode2(hasNodeBuffer ? Buffer2.from(buffer, offset, length) : new Uint8Array(buffer, offset, length));
+    }
+  };
+}
+function writeBuffer(buffer, makeRoom) {
+  let length = buffer.byteLength;
+  if (length < 24) {
+    target[position2++] = 64 + length;
+  } else if (length < 256) {
+    target[position2++] = 88;
+    target[position2++] = length;
+  } else if (length < 65536) {
+    target[position2++] = 89;
+    target[position2++] = length >> 8;
+    target[position2++] = length & 255;
+  } else {
+    target[position2++] = 90;
+    targetView.setUint32(position2, length);
+    position2 += 4;
+  }
+  if (position2 + length >= target.length) {
+    makeRoom(position2 + length);
+  }
+  target.set(buffer.buffer ? buffer : new Uint8Array(buffer), position2);
+  position2 += length;
+}
+function insertIds(serialized, idsToInsert) {
+  let nextId;
+  let distanceToMove = idsToInsert.length * 2;
+  let lastEnd = serialized.length - distanceToMove;
+  idsToInsert.sort((a, b) => a.offset > b.offset ? 1 : -1);
+  for (let id = 0; id < idsToInsert.length; id++) {
+    let referee = idsToInsert[id];
+    referee.id = id;
+    for (let position3 of referee.references) {
+      serialized[position3++] = id >> 8;
+      serialized[position3] = id & 255;
+    }
+  }
+  while (nextId = idsToInsert.pop()) {
+    let offset = nextId.offset;
+    serialized.copyWithin(offset + distanceToMove, offset, lastEnd);
+    distanceToMove -= 2;
+    let position3 = offset + distanceToMove;
+    serialized[position3++] = 216;
+    serialized[position3++] = 28;
+    lastEnd = offset;
+  }
+  return serialized;
+}
+function writeBundles(start, encode2) {
+  targetView.setUint32(bundledStrings2.position + start, position2 - bundledStrings2.position - start + 1);
+  let writeStrings = bundledStrings2;
+  bundledStrings2 = null;
+  encode2(writeStrings[0]);
+  encode2(writeStrings[1]);
+}
+var defaultEncoder = new Encoder({ useRecords: false });
+var encode = defaultEncoder.encode;
+var encodeAsIterable = defaultEncoder.encodeAsIterable;
+var encodeAsAsyncIterable = defaultEncoder.encodeAsAsyncIterable;
+var { NEVER, ALWAYS, DECIMAL_ROUND, DECIMAL_FIT } = FLOAT32_OPTIONS;
+var REUSE_BUFFER_MODE = 512;
+var RESET_BUFFER_MODE = 1024;
+var THROW_ON_ITERABLE = 2048;
+
+// src/dataflow/hil-client.ts
+var TAG_I2C_READ = 1;
+var TAG_I2C_WRITE = 2;
+var TAG_LIST_BUSES = 3;
+var TAG_ADD_DEVICE = 30;
+var TAG_REMOVE_DEVICE = 31;
+var TAG_SET_REGISTERS = 32;
+var TAG_SET_BUS_COUNT = 33;
+var TAG_CLEAR_ALL = 34;
+var TAG_GET_CONFIG = 35;
+var TAG_DEPLOY_GRAPH = 40;
+var TAG_GET_PIN_CONFIG = 43;
+var TAG_RESP_BUS_LIST = 3;
+var TAG_RESP_CONFIG = 35;
+var TAG_RESP_PIN_CFG = 42;
+var TAG_RESP_DEPLOY = 41;
+var TAG_RESP_ERROR = 255;
+var HilClient = class {
+  ws = null;
+  url = "";
+  reconnectDelay = 500;
+  maxReconnectDelay = 3e4;
+  reconnectTimer = null;
+  shouldReconnect = false;
+  // Callbacks
+  onConnect = null;
+  onDisconnect = null;
+  onBusList = null;
+  onPinConfig = null;
+  onError = null;
+  onDeployAck = null;
+  get connected() {
+    return this.ws?.readyState === WebSocket.OPEN;
+  }
+  connect(url) {
+    this.url = url;
+    this.shouldReconnect = true;
+    this.reconnectDelay = 500;
+    this.openSocket();
+  }
+  disconnect() {
+    this.shouldReconnect = false;
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    if (this.ws) {
+      this.ws.close();
+      this.ws = null;
+    }
+  }
+  // ── Request methods ────────────────────────────────────────────
+  listBuses() {
+    this.send({ 0: TAG_LIST_BUSES });
+  }
+  /** Add a simulated device. `registers` is initial register data (bytes). */
+  addDevice(bus, addr, name, registers) {
+    const regData = typeof registers === "number" ? new Uint8Array(registers) : registers;
+    this.send({ 0: TAG_ADD_DEVICE, 1: bus, 2: addr, 3: name, 4: regData });
+  }
+  removeDevice(bus, addr) {
+    this.send({ 0: TAG_REMOVE_DEVICE, 1: bus, 2: addr });
+  }
+  setRegisters(bus, addr, offset, data) {
+    this.send({ 0: TAG_SET_REGISTERS, 1: bus, 2: addr, 3: offset, 4: data });
+  }
+  setBusCount(count) {
+    this.send({ 0: TAG_SET_BUS_COUNT, 1: count });
+  }
+  clearAll() {
+    this.send({ 0: TAG_CLEAR_ALL });
+  }
+  getConfig() {
+    this.send({ 0: TAG_GET_CONFIG });
+  }
+  getPinConfig() {
+    this.send({ 0: TAG_GET_PIN_CONFIG });
+  }
+  /** Read I2C register(s) from a device on a bus. */
+  i2cRead(bus, addr, reg, len) {
+    this.send({ 0: TAG_I2C_READ, 1: bus, 2: addr, 3: reg, 4: len });
+  }
+  /** Write raw bytes to an I2C device on a bus. */
+  i2cWrite(bus, addr, data) {
+    this.send({ 0: TAG_I2C_WRITE, 1: bus, 2: addr, 3: data });
+  }
+  deploy(snapshotJson, target2, dt) {
+    this.send({ 0: TAG_DEPLOY_GRAPH, 1: snapshotJson, 2: target2, 3: dt });
+  }
+  // ── Internals ──────────────────────────────────────────────────
+  openSocket() {
+    if (this.ws) {
+      this.ws.close();
+      this.ws = null;
+    }
+    const ws = new WebSocket(this.url);
+    ws.binaryType = "arraybuffer";
+    this.ws = ws;
+    ws.addEventListener("open", () => {
+      this.reconnectDelay = 500;
+      this.onConnect?.();
+      this.listBuses();
+      this.getPinConfig();
+    });
+    ws.addEventListener("close", () => {
+      this.ws = null;
+      this.onDisconnect?.();
+      this.scheduleReconnect();
+    });
+    ws.addEventListener("error", () => {
+    });
+    ws.addEventListener("message", (ev) => {
+      this.handleMessage(ev);
+    });
+  }
+  scheduleReconnect() {
+    if (!this.shouldReconnect) return;
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      this.openSocket();
+    }, this.reconnectDelay);
+    this.reconnectDelay = Math.min(this.reconnectDelay * 2, this.maxReconnectDelay);
+  }
+  send(msg) {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+    this.ws.send(encode(msg));
+  }
+  handleMessage(ev) {
+    let msg;
+    try {
+      const data = ev.data instanceof ArrayBuffer ? new Uint8Array(ev.data) : ev.data;
+      msg = decode(data);
+    } catch {
+      this.onError?.("Failed to decode CBOR response");
+      return;
+    }
+    const tag = msg[0];
+    switch (tag) {
+      case TAG_RESP_BUS_LIST:
+        this.onBusList?.(parseBusList(msg));
+        break;
+      case TAG_RESP_PIN_CFG:
+        this.onPinConfig?.(parsePinConfig(msg));
+        break;
+      case TAG_RESP_CONFIG:
+        this.onBusList?.(parseBusList(msg));
+        break;
+      case TAG_RESP_DEPLOY:
+        this.onDeployAck?.();
+        break;
+      case TAG_RESP_ERROR:
+        this.onError?.(String(msg[1] ?? "Unknown error"));
+        break;
+      // Tag-only acks (30-34) — re-request bus list to refresh UI
+      case TAG_ADD_DEVICE:
+      case TAG_REMOVE_DEVICE:
+      case TAG_SET_REGISTERS:
+      case TAG_SET_BUS_COUNT:
+      case TAG_CLEAR_ALL:
+        this.listBuses();
+        break;
+    }
+  }
+};
+function parseBusList(msg) {
+  const raw = msg[1];
+  if (!Array.isArray(raw)) return [];
+  return raw.map((b, i) => ({
+    busIdx: b[0] ?? i,
+    devices: Array.isArray(b[1]) ? b[1].map((d) => ({
+      addr: d[0],
+      name: String(d[1] ?? "")
+    })) : []
+  }));
+}
+function parsePinConfig(msg) {
+  const raw = msg[1];
+  if (!Array.isArray(raw)) return [];
+  return raw.map((p) => ({
+    name: String(p[0] ?? ""),
+    direction: p[1] === "O" ? "O" : "I"
+  }));
+}
+
+// src/dataflow/pin-table.ts
+var COLS = 16;
+function renderPinTable(container, pins, onEdit) {
+  container.textContent = "";
+  if (pins.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "text-xs text-text-dim p-2";
+    empty.textContent = "No pin configuration received.";
+    container.appendChild(empty);
+    return;
+  }
+  const table = document.createElement("table");
+  table.className = "pin-table";
+  const thead = document.createElement("tr");
+  const corner = document.createElement("th");
+  corner.textContent = "";
+  thead.appendChild(corner);
+  for (let c = 0; c < COLS; c++) {
+    const th = document.createElement("th");
+    th.textContent = String(c);
+    thead.appendChild(th);
+  }
+  table.appendChild(thead);
+  const totalRows = Math.ceil(pins.length / COLS);
+  const startRow = Math.max(0, totalRows - 16);
+  for (let r = startRow; r < totalRows; r++) {
+    const tr = document.createElement("tr");
+    const rowLabel = document.createElement("th");
+    rowLabel.textContent = String(r);
+    tr.appendChild(rowLabel);
+    for (let c = 0; c < COLS; c++) {
+      const idx = r * COLS + c;
+      const td = document.createElement("td");
+      td.className = "pin-cell";
+      if (idx < pins.length) {
+        const pin = pins[idx];
+        td.classList.add(pin.direction === "I" ? "pin-cell-input" : "pin-cell-output");
+        const nameSpan = document.createElement("span");
+        nameSpan.className = "pin-name";
+        nameSpan.textContent = pin.name || String(idx);
+        nameSpan.title = `Pin ${idx}: ${pin.name}`;
+        td.appendChild(nameSpan);
+        const badge = document.createElement("span");
+        badge.className = "pin-badge";
+        badge.textContent = `[${pin.direction}]`;
+        td.appendChild(badge);
+        td.addEventListener("click", () => {
+          const newDir = pin.direction === "I" ? "O" : "I";
+          onEdit(idx, { name: pin.name, direction: newDir });
+        });
+        td.addEventListener("dblclick", (e) => {
+          e.stopPropagation();
+          const input = document.createElement("input");
+          input.type = "text";
+          input.value = pin.name;
+          input.className = "pin-inline-edit";
+          td.textContent = "";
+          td.appendChild(input);
+          input.focus();
+          input.select();
+          const commit = () => {
+            const newName = input.value.trim() || pin.name;
+            onEdit(idx, { name: newName, direction: pin.direction });
+          };
+          input.addEventListener("blur", commit);
+          input.addEventListener("keydown", (ke) => {
+            if (ke.key === "Enter") input.blur();
+            if (ke.key === "Escape") {
+              input.value = pin.name;
+              input.blur();
+            }
+          });
+        });
+      }
+      tr.appendChild(td);
+    }
+    table.appendChild(tr);
+  }
+  container.appendChild(table);
+}
+
+// src/dataflow/i2c-panel.ts
+function renderI2cPanel(container, client) {
+  container.textContent = "";
+  const controls = document.createElement("div");
+  controls.className = "i2c-controls";
+  const busCountLabel = document.createElement("label");
+  busCountLabel.className = "text-xs text-text-dim";
+  busCountLabel.textContent = "Bus count: ";
+  const busCountInput = document.createElement("input");
+  busCountInput.type = "number";
+  busCountInput.min = "1";
+  busCountInput.max = "16";
+  busCountInput.value = "1";
+  busCountInput.className = "i2c-input i2c-input-sm";
+  const setBusBtn = document.createElement("button");
+  setBusBtn.className = "btn btn-secondary btn-sm";
+  setBusBtn.textContent = "Set";
+  setBusBtn.addEventListener("click", () => {
+    client.setBusCount(parseInt(busCountInput.value) || 1);
+  });
+  const clearBtn = document.createElement("button");
+  clearBtn.className = "btn btn-sm";
+  clearBtn.style.backgroundColor = "var(--color-danger)";
+  clearBtn.style.color = "white";
+  clearBtn.textContent = "Clear All";
+  clearBtn.addEventListener("click", () => {
+    client.clearAll();
+  });
+  controls.appendChild(busCountLabel);
+  controls.appendChild(busCountInput);
+  controls.appendChild(setBusBtn);
+  controls.appendChild(clearBtn);
+  container.appendChild(controls);
+  const cardGrid = document.createElement("div");
+  cardGrid.className = "i2c-bus-grid";
+  container.appendChild(cardGrid);
+  const form = document.createElement("div");
+  form.className = "i2c-form";
+  const formTitle = document.createElement("div");
+  formTitle.className = "text-xs font-semibold mb-1";
+  formTitle.textContent = "Add Device";
+  form.appendChild(formTitle);
+  const busInput = createField(form, "Bus", "number", "0");
+  const addrInput = createField(form, "Addr (hex)", "text", "0x50");
+  const nameInput = createField(form, "Name", "text", "eeprom");
+  const regInput = createField(form, "Registers", "number", "256");
+  const addBtn = document.createElement("button");
+  addBtn.className = "btn btn-primary btn-sm";
+  addBtn.textContent = "Add Device";
+  addBtn.addEventListener("click", () => {
+    const bus = parseInt(busInput.value) || 0;
+    const addr = parseInt(addrInput.value, 16) || parseInt(addrInput.value) || 0;
+    const name = nameInput.value.trim() || "device";
+    const regs = parseInt(regInput.value) || 256;
+    client.addDevice(bus, addr, name, regs);
+  });
+  form.appendChild(addBtn);
+  container.appendChild(form);
+  container._cardGrid = cardGrid;
+}
+function updateI2cBuses(container, buses, client) {
+  const cardGrid = container._cardGrid;
+  if (!cardGrid) return;
+  cardGrid.textContent = "";
+  if (buses.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "text-xs text-text-dim p-2";
+    empty.textContent = "No buses configured.";
+    cardGrid.appendChild(empty);
+    return;
+  }
+  for (const bus of buses) {
+    const card = document.createElement("div");
+    card.className = "i2c-bus-card";
+    const header = document.createElement("div");
+    header.className = "i2c-bus-header";
+    header.textContent = `Bus ${bus.busIdx}`;
+    const count = document.createElement("span");
+    count.className = "text-text-dim";
+    count.textContent = ` (${bus.devices.length} devices)`;
+    header.appendChild(count);
+    card.appendChild(header);
+    for (const dev of bus.devices) {
+      const row = document.createElement("div");
+      row.className = "i2c-device-row";
+      const addrSpan = document.createElement("span");
+      addrSpan.className = "i2c-device-addr";
+      addrSpan.textContent = `0x${dev.addr.toString(16).padStart(2, "0")}`;
+      row.appendChild(addrSpan);
+      const nameSpan = document.createElement("span");
+      nameSpan.className = "i2c-device-name";
+      nameSpan.textContent = dev.name;
+      row.appendChild(nameSpan);
+      const removeBtn = document.createElement("button");
+      removeBtn.className = "btn btn-sm i2c-remove-btn";
+      removeBtn.textContent = "\xD7";
+      removeBtn.title = "Remove device";
+      removeBtn.addEventListener("click", () => {
+        client.removeDevice(bus.busIdx, dev.addr);
+      });
+      row.appendChild(removeBtn);
+      card.appendChild(row);
+    }
+    cardGrid.appendChild(card);
+  }
+}
+function createField(parent, label, type, value) {
+  const row = document.createElement("div");
+  row.className = "i2c-form-row";
+  const lbl = document.createElement("label");
+  lbl.className = "text-[11px] text-text-dim";
+  lbl.textContent = label;
+  row.appendChild(lbl);
+  const input = document.createElement("input");
+  input.type = type;
+  input.value = value;
+  input.className = "i2c-input";
+  row.appendChild(input);
+  parent.appendChild(row);
+  return input;
+}
+
+// src/dataflow/storage.ts
+var KEY_PROJECTS = "webcam:projects";
+var KEY_ACTIVE = "webcam:active";
+var projectKey = (name) => `webcam:project:${name}`;
+function serializeProject(name, snap, positions, viewport) {
+  return {
+    name,
+    lastModified: (/* @__PURE__ */ new Date()).toISOString(),
+    graph: {
+      blocks: snap.blocks.map((b) => ({
+        id: b.id,
+        blockType: b.block_type,
+        config: b.config
+      })),
+      channels: snap.channels.map((c) => ({
+        fromBlock: c.from_block[0],
+        fromPort: c.from_port,
+        toBlock: c.to_block[0],
+        toPort: c.to_port
+      }))
+    },
+    positions: Object.fromEntries(positions),
+    viewport
+  };
+}
+function listProjects() {
+  try {
+    const raw = localStorage.getItem(KEY_PROJECTS);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+function saveProject(project) {
+  const names = listProjects();
+  if (!names.includes(project.name)) {
+    names.push(project.name);
+    localStorage.setItem(KEY_PROJECTS, JSON.stringify(names));
+  }
+  localStorage.setItem(projectKey(project.name), JSON.stringify(project));
+}
+function loadProject(name) {
+  try {
+    const raw = localStorage.getItem(projectKey(name));
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+function deleteProject(name) {
+  const names = listProjects().filter((n) => n !== name);
+  localStorage.setItem(KEY_PROJECTS, JSON.stringify(names));
+  localStorage.removeItem(projectKey(name));
+}
+function getActiveProjectName() {
+  return localStorage.getItem(KEY_ACTIVE);
+}
+function setActiveProjectName(name) {
+  localStorage.setItem(KEY_ACTIVE, name);
+}
+function uniqueName(base, existing) {
+  if (!existing.includes(base)) return base;
+  let i = 2;
+  while (existing.includes(`${base} (${i})`)) i++;
+  return `${base} (${i})`;
+}
+function createAutoSave(saveFn, delayMs = 1e3) {
+  let timer = null;
+  return () => {
+    if (timer !== null) clearTimeout(timer);
+    timer = setTimeout(() => {
+      timer = null;
+      saveFn();
+    }, delayMs);
+  };
+}
+
+// src/dataflow/sidebar.ts
+function createSidebar(callbacks) {
+  const el = document.createElement("div");
+  el.className = "df-sidebar hidden";
+  const header = document.createElement("div");
+  header.className = "df-sidebar-header";
+  const title = document.createElement("h3");
+  title.textContent = "Projects";
+  header.appendChild(title);
+  el.appendChild(header);
+  const list = document.createElement("div");
+  list.className = "df-project-list";
+  el.appendChild(list);
+  function toggle() {
+    el.classList.toggle("hidden");
+  }
+  function renderProjects(projects, activeName) {
+    list.textContent = "";
+    if (projects.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "df-project-empty";
+      empty.textContent = "No saved projects";
+      list.appendChild(empty);
+      return;
+    }
+    for (const proj of projects) {
+      const item = document.createElement("div");
+      item.className = "df-project-item";
+      if (proj.name === activeName) item.classList.add("active");
+      const info = document.createElement("div");
+      info.className = "df-project-info";
+      const nameEl = document.createElement("div");
+      nameEl.className = "df-project-name";
+      nameEl.textContent = proj.name;
+      info.appendChild(nameEl);
+      const dateEl = document.createElement("div");
+      dateEl.className = "df-project-date";
+      dateEl.textContent = formatDate(proj.lastModified);
+      info.appendChild(dateEl);
+      item.appendChild(info);
+      const actions = document.createElement("div");
+      actions.className = "df-project-actions";
+      const loadBtn = document.createElement("button");
+      loadBtn.className = "df-project-load";
+      loadBtn.textContent = "Load";
+      loadBtn.addEventListener("click", () => callbacks.onLoad(proj.name));
+      actions.appendChild(loadBtn);
+      const deleteBtn = document.createElement("button");
+      deleteBtn.className = "df-project-delete";
+      deleteBtn.textContent = "Delete";
+      deleteBtn.addEventListener("click", () => callbacks.onDelete(proj.name));
+      actions.appendChild(deleteBtn);
+      item.appendChild(actions);
+      list.appendChild(item);
+    }
+  }
+  return { element: el, toggle, renderProjects };
+}
+function formatDate(iso) {
+  try {
+    const d = new Date(iso);
+    const now = Date.now();
+    const diffMs = now - d.getTime();
+    const diffMin = Math.floor(diffMs / 6e4);
+    if (diffMin < 1) return "just now";
+    if (diffMin < 60) return `${diffMin}m ago`;
+    const diffHr = Math.floor(diffMin / 60);
+    if (diffHr < 24) return `${diffHr}h ago`;
+    const diffDays = Math.floor(diffHr / 24);
+    return `${diffDays}d ago`;
+  } catch {
+    return "";
+  }
+}
+
 // src/dataflow/index.ts
 var mgr = null;
 var editor = null;
+var hilClient = null;
+var activeProjectName = "Untitled";
+var triggerAutoSave = null;
 function initDataflow() {
   mgr = new DataflowManager(0.01);
-  const canvas2 = $canvas("dataflow-canvas");
-  editor = new DataflowEditor(canvas2, mgr);
+  const container = $("dataflow-workspace");
+  editor = new DataflowEditor(container, mgr);
   editor.onSelect = (blockId, snap) => {
     updateBlockInfo(blockId, snap);
   };
+  editor.onEdgeSelect = (channelId, snap) => {
+    updateEdgeInfo(channelId, snap);
+  };
+  const projectNameEl = $("df-project-name");
+  function currentSave() {
+    if (!mgr || !editor) return;
+    const snap = mgr.snapshot();
+    const viewport = { panX: 0, panY: 0, scale: 1 };
+    const project = serializeProject(activeProjectName, snap, mgr.positions, viewport);
+    saveProject(project);
+    setActiveProjectName(activeProjectName);
+  }
+  triggerAutoSave = createAutoSave(() => currentSave(), 1e3);
+  function updateProjectNameDisplay() {
+    projectNameEl.textContent = activeProjectName;
+  }
+  function refreshSidebar() {
+    const projects = listProjects();
+    const infos = projects.map((name) => {
+      const p = loadProject(name);
+      return { name, lastModified: p?.lastModified ?? "" };
+    });
+    sidebar.renderProjects(infos, activeProjectName);
+  }
+  function resetEditor(dt) {
+    if (!mgr || !editor) return;
+    mgr.stop();
+    $btn("df-play").textContent = "Play";
+    editor.destroy();
+    mgr.destroy();
+    mgr = new DataflowManager(dt);
+    editor = new DataflowEditor(container, mgr);
+    editor.onSelect = (blockId, snap) => updateBlockInfo(blockId, snap);
+    editor.onEdgeSelect = (channelId, snap) => updateEdgeInfo(channelId, snap);
+    editor.onChange = () => triggerAutoSave?.();
+    editor.resize();
+  }
+  function loadProjectByName(name) {
+    const project = loadProject(name);
+    if (!project) return;
+    const dt = parseFloat($input("df-dt").value) || 0.01;
+    resetEditor(dt);
+    mgr.restoreProject(project);
+    activeProjectName = name;
+    setActiveProjectName(name);
+    updateProjectNameDisplay();
+    editor.updateSnapshot();
+  }
+  const sidebarContainer = $("df-sidebar-panel");
+  const sidebar = createSidebar({
+    onLoad: (name) => {
+      currentSave();
+      loadProjectByName(name);
+      refreshSidebar();
+    },
+    onDelete: (name) => {
+      deleteProject(name);
+      if (name === activeProjectName) {
+        const dt = parseFloat($input("df-dt").value) || 0.01;
+        resetEditor(dt);
+        activeProjectName = "Untitled";
+        setActiveProjectName(activeProjectName);
+        updateProjectNameDisplay();
+      }
+      refreshSidebar();
+    }
+  });
+  sidebarContainer.appendChild(sidebar.element);
+  $btn("df-new").addEventListener("click", () => {
+    currentSave();
+    const dt = parseFloat($input("df-dt").value) || 0.01;
+    resetEditor(dt);
+    activeProjectName = uniqueName("Untitled", listProjects());
+    setActiveProjectName(activeProjectName);
+    updateProjectNameDisplay();
+    refreshSidebar();
+  });
+  $btn("df-save-as").addEventListener("click", () => {
+    const name = prompt("Project name:");
+    if (!name || !name.trim()) return;
+    const finalName = uniqueName(name.trim(), listProjects());
+    activeProjectName = finalName;
+    currentSave();
+    updateProjectNameDisplay();
+    refreshSidebar();
+  });
+  $btn("df-projects").addEventListener("click", () => {
+    refreshSidebar();
+    sidebar.toggle();
+  });
+  editor.onChange = () => triggerAutoSave?.();
+  const lastActive = getActiveProjectName();
+  if (lastActive && loadProject(lastActive)) {
+    loadProjectByName(lastActive);
+  } else {
+    activeProjectName = "Untitled";
+    updateProjectNameDisplay();
+  }
   $btn("df-play").addEventListener("click", () => {
     if (!mgr) return;
     if (mgr.running) {
@@ -1635,14 +5069,9 @@ function initDataflow() {
   });
   $btn("df-reset").addEventListener("click", () => {
     if (!mgr) return;
-    mgr.stop();
-    $btn("df-play").textContent = "Play";
-    mgr.destroy();
     const dt = parseFloat($input("df-dt").value) || 0.01;
-    mgr = new DataflowManager(dt);
-    editor = new DataflowEditor(canvas2, mgr);
-    editor.onSelect = (blockId, snap) => updateBlockInfo(blockId, snap);
-    editor.resize();
+    resetEditor(dt);
+    triggerAutoSave?.();
   });
   $input("df-speed").addEventListener("input", () => {
     if (!mgr) return;
@@ -1656,6 +5085,46 @@ function initDataflow() {
     updatePlots(snap);
     editor?.updateSnapshot();
   });
+  $btn("df-export-rust").addEventListener("click", () => {
+    if (!mgr) return;
+    const statusEl2 = $("df-export-status");
+    const dt = parseFloat($input("df-dt").value) || 0.01;
+    try {
+      const targetChecks = document.querySelectorAll(".df-target-check");
+      if (targetChecks.length > 0) {
+        const selectedTargets = Array.from(targetChecks).filter((cb) => cb.checked).map((cb) => ({
+          target: cb.dataset.target,
+          binding: { target: cb.dataset.target, pins: [] }
+        }));
+        if (selectedTargets.length === 0) {
+          statusEl2.textContent = "Select at least one target.";
+          statusEl2.className = "text-xs mt-2 min-h-4 text-danger";
+          return;
+        }
+        const json = dataflow_codegen_multi(
+          mgr.graphId,
+          dt,
+          JSON.stringify(selectedTargets)
+        );
+        const files = JSON.parse(json);
+        downloadAsZip(files);
+        statusEl2.textContent = `Exported workspace: ${files.length} files.`;
+        statusEl2.className = "text-xs mt-2 min-h-4 text-success";
+      } else {
+        const json = dataflow_codegen(mgr.graphId, dt);
+        const files = JSON.parse(json);
+        downloadAsZip(files);
+        statusEl2.textContent = `Exported ${files.length} files.`;
+        statusEl2.className = "text-xs mt-2 min-h-4 text-success";
+      }
+    } catch (e) {
+      statusEl2.textContent = `Export error: ${e}`;
+      statusEl2.className = "text-xs mt-2 min-h-4 text-danger";
+    }
+  });
+  setupTargetCheckboxes();
+  setupHilConnection();
+  setupDfRightTabs();
 }
 function resizeDataflow() {
   editor?.resize();
@@ -1666,26 +5135,156 @@ function activateDataflow() {
 function updateBlockInfo(blockId, snap) {
   const infoEl = $("df-block-info");
   if (blockId === null || !snap) {
-    infoEl.innerHTML = '<span style="color:#8888a0">Select a block to view details</span>';
+    infoEl.textContent = "";
+    const span = document.createElement("span");
+    span.className = "text-text-dim";
+    span.textContent = "Select a block to view details";
+    infoEl.appendChild(span);
     return;
   }
   const block = snap.blocks.find((b) => b.id === blockId);
   if (!block) return;
-  let html = `<b>${block.name}</b> <span style="color:#8888a0">#${block.id}</span><br>`;
-  html += `<span style="color:#8888a0;font-size:11px">${block.block_type}</span><br>`;
+  infoEl.textContent = "";
+  const nameEl = document.createElement("b");
+  nameEl.textContent = block.name;
+  infoEl.appendChild(nameEl);
+  const idSpan = document.createElement("span");
+  idSpan.className = "text-text-dim";
+  idSpan.textContent = ` #${block.id}`;
+  infoEl.appendChild(idSpan);
+  infoEl.appendChild(document.createElement("br"));
+  const typeSpan = document.createElement("span");
+  typeSpan.className = "text-text-dim text-[11px]";
+  typeSpan.textContent = block.block_type;
+  infoEl.appendChild(typeSpan);
+  infoEl.appendChild(document.createElement("br"));
   if (block.output_values.length > 0) {
-    html += '<div style="margin-top:6px;font-size:12px">';
+    const valDiv = document.createElement("div");
+    valDiv.className = "mt-1.5 text-xs";
     for (let i = 0; i < block.outputs.length; i++) {
       const val = block.output_values[i];
-      html += `<div>${block.outputs[i].name}: ${formatValue(val)}</div>`;
+      const row = document.createElement("div");
+      row.textContent = `${block.outputs[i].name}: ${formatValue(val)}`;
+      valDiv.appendChild(row);
     }
-    html += "</div>";
+    infoEl.appendChild(valDiv);
   }
-  infoEl.innerHTML = html;
+  const configKeys = Object.keys(block.config ?? {});
+  if (configKeys.length > 0) {
+    const configDiv = document.createElement("div");
+    configDiv.className = "mt-2 text-xs";
+    const configLabel = document.createElement("b");
+    configLabel.textContent = "Config";
+    configDiv.appendChild(configLabel);
+    const inputs = {};
+    for (const key of configKeys) {
+      const row = document.createElement("div");
+      row.className = "mt-1";
+      const label = document.createElement("label");
+      label.className = "block text-text-dim text-[11px]";
+      label.textContent = key;
+      row.appendChild(label);
+      const input = document.createElement("input");
+      const val = block.config[key];
+      if (typeof val === "number") {
+        input.type = "number";
+        input.step = "any";
+        input.value = String(val);
+      } else {
+        input.type = "text";
+        input.value = String(val ?? "");
+      }
+      input.className = "w-full bg-bg border border-border rounded text-text text-xs px-2 py-1 mt-0.5 outline-none";
+      row.appendChild(input);
+      configDiv.appendChild(row);
+      inputs[key] = input;
+    }
+    const applyBtn = document.createElement("button");
+    applyBtn.className = "btn btn-primary btn-sm mt-2";
+    applyBtn.textContent = "Apply";
+    applyBtn.addEventListener("click", () => {
+      if (!mgr || !editor) return;
+      const newConfig = {};
+      for (const key of configKeys) {
+        const raw = inputs[key].value;
+        const origVal = block.config[key];
+        newConfig[key] = typeof origVal === "number" ? parseFloat(raw) || 0 : raw;
+      }
+      mgr.updateBlock(blockId, block.block_type, newConfig);
+      const newSnap = mgr.snapshot();
+      editor.updateSnapshot();
+      updateBlockInfo(blockId, newSnap);
+    });
+    configDiv.appendChild(applyBtn);
+    infoEl.appendChild(configDiv);
+  }
+  const deleteBtn = document.createElement("button");
+  deleteBtn.className = "btn btn-sm mt-2";
+  deleteBtn.style.backgroundColor = "var(--color-danger)";
+  deleteBtn.style.color = "white";
+  deleteBtn.textContent = "Delete Block";
+  deleteBtn.addEventListener("click", () => {
+    if (!mgr || !editor) return;
+    mgr.removeBlock(blockId);
+    editor.clearSelection();
+    editor.updateSnapshot();
+    updateBlockInfo(null, null);
+  });
+  infoEl.appendChild(deleteBtn);
   updatePlots(snap);
 }
+function updateEdgeInfo(channelId, snap) {
+  const infoEl = $("df-block-info");
+  if (channelId === null || !snap) {
+    infoEl.textContent = "";
+    const span = document.createElement("span");
+    span.className = "text-text-dim";
+    span.textContent = "Select a block or edge to view details";
+    infoEl.appendChild(span);
+    return;
+  }
+  const ch = snap.channels.find((c) => c.id[0] === channelId);
+  if (!ch) return;
+  const fromBlock = snap.blocks.find((b) => b.id === ch.from_block[0]);
+  const toBlock = snap.blocks.find((b) => b.id === ch.to_block[0]);
+  infoEl.textContent = "";
+  const title = document.createElement("b");
+  title.textContent = "Channel";
+  infoEl.appendChild(title);
+  const idSpan = document.createElement("span");
+  idSpan.className = "text-text-dim";
+  idSpan.textContent = ` #${channelId}`;
+  infoEl.appendChild(idSpan);
+  infoEl.appendChild(document.createElement("br"));
+  const detailDiv = document.createElement("div");
+  detailDiv.className = "mt-1.5 text-xs";
+  const fromName = fromBlock ? `${fromBlock.name}` : `Block ${ch.from_block[0]}`;
+  const fromPortName = fromBlock?.outputs[ch.from_port]?.name ?? `port ${ch.from_port}`;
+  const toName = toBlock ? `${toBlock.name}` : `Block ${ch.to_block[0]}`;
+  const toPortName = toBlock?.inputs[ch.to_port]?.name ?? `port ${ch.to_port}`;
+  const fromRow = document.createElement("div");
+  fromRow.textContent = `From: ${fromName} \u2192 ${fromPortName}`;
+  detailDiv.appendChild(fromRow);
+  const toRow = document.createElement("div");
+  toRow.textContent = `To: ${toName} \u2192 ${toPortName}`;
+  detailDiv.appendChild(toRow);
+  infoEl.appendChild(detailDiv);
+  const disconnectBtn = document.createElement("button");
+  disconnectBtn.className = "btn btn-sm mt-2";
+  disconnectBtn.style.backgroundColor = "var(--color-danger)";
+  disconnectBtn.style.color = "white";
+  disconnectBtn.textContent = "Disconnect";
+  disconnectBtn.addEventListener("click", () => {
+    if (!mgr || !editor) return;
+    mgr.disconnect(channelId);
+    editor.clearSelection();
+    editor.updateSnapshot();
+    updateEdgeInfo(null, null);
+  });
+  infoEl.appendChild(disconnectBtn);
+}
 function formatValue(val) {
-  if (!val) return '<span style="color:#8888a0">\u2014</span>';
+  if (!val) return "\u2014";
   switch (val.type) {
     case "Float":
       return val.data.toFixed(4);
@@ -1696,6 +5295,121 @@ function formatValue(val) {
     case "Series":
       return `[${val.data.length} samples]`;
   }
+}
+var TARGET_OPTIONS = [
+  { id: "Host", label: "Host (Simulation)", checked: true },
+  { id: "Rp2040", label: "RP2040 (Pico)", checked: false },
+  { id: "Stm32f4", label: "STM32F4", checked: false },
+  { id: "Esp32c3", label: "ESP32-C3", checked: false }
+];
+function setupTargetCheckboxes() {
+  const container = document.getElementById("df-target-select");
+  if (!container) return;
+  container.textContent = "";
+  const label = document.createElement("b");
+  label.textContent = "Targets";
+  label.className = "text-xs";
+  container.appendChild(label);
+  for (const target2 of TARGET_OPTIONS) {
+    const row = document.createElement("label");
+    row.className = "flex items-center gap-1.5 text-xs mt-1 cursor-pointer";
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.checked = target2.checked;
+    cb.className = "df-target-check";
+    cb.dataset.target = target2.id;
+    row.appendChild(cb);
+    const span = document.createElement("span");
+    span.textContent = target2.label;
+    row.appendChild(span);
+    container.appendChild(row);
+  }
+}
+function setupHilConnection() {
+  const connectBtn = $btn("hil-connect");
+  const statusEl2 = $("hil-status");
+  const deployBtn = document.getElementById("hil-deploy");
+  const deployStatus = $("hil-deploy-status");
+  const pinContainer = $("hil-pin-table");
+  const i2cContainer = $("hil-i2c-panel");
+  connectBtn.addEventListener("click", () => {
+    if (hilClient?.connected) {
+      hilClient.disconnect();
+      return;
+    }
+    const url = $input("hil-ws-url").value.trim();
+    if (!url) return;
+    hilClient = new HilClient();
+    hilClient.onConnect = () => {
+      statusEl2.textContent = "Connected";
+      statusEl2.className = "text-xs text-success mb-2";
+      connectBtn.textContent = "Disconnect";
+      deployBtn.disabled = false;
+    };
+    hilClient.onDisconnect = () => {
+      statusEl2.textContent = "Disconnected";
+      statusEl2.className = "text-xs text-text-dim mb-2";
+      connectBtn.textContent = "Connect";
+      deployBtn.disabled = true;
+    };
+    hilClient.onBusList = (buses) => {
+      updateI2cBuses(i2cContainer, buses, hilClient);
+    };
+    hilClient.onPinConfig = (pins) => {
+      renderPinTable(pinContainer, pins, (_idx, _pin) => {
+        hilClient?.getPinConfig();
+      });
+    };
+    hilClient.onError = (msg) => {
+      deployStatus.textContent = `Error: ${msg}`;
+      deployStatus.className = "text-xs mt-1 min-h-4 text-danger";
+    };
+    hilClient.onDeployAck = () => {
+      deployStatus.textContent = "Deployed successfully.";
+      deployStatus.className = "text-xs mt-1 min-h-4 text-success";
+    };
+    renderI2cPanel(i2cContainer, hilClient);
+    hilClient.connect(url);
+    statusEl2.textContent = "Connecting\u2026";
+    statusEl2.className = "text-xs text-warning mb-2";
+  });
+  deployBtn.addEventListener("click", () => {
+    if (!mgr || !hilClient?.connected) return;
+    const dt = parseFloat($input("df-dt").value) || 0.01;
+    const targetChecks = document.querySelectorAll(".df-target-check:checked");
+    const target2 = targetChecks.length > 0 ? targetChecks[0].dataset.target : "Host";
+    try {
+      const snap = mgr.snapshot();
+      const snapshotJson = JSON.stringify(snap);
+      hilClient.deploy(snapshotJson, target2, dt);
+      deployStatus.textContent = "Deploying\u2026";
+      deployStatus.className = "text-xs mt-1 min-h-4 text-warning";
+    } catch (e) {
+      deployStatus.textContent = `Deploy error: ${e}`;
+      deployStatus.className = "text-xs mt-1 min-h-4 text-danger";
+    }
+  });
+}
+function setupDfRightTabs() {
+  const tabs = document.querySelectorAll(".df-right-tab");
+  tabs.forEach((tab) => {
+    tab.addEventListener("click", () => {
+      const targetId = tab.dataset.dftab;
+      if (!targetId) return;
+      tabs.forEach((t) => t.classList.remove("active"));
+      document.querySelectorAll(".df-tab-content").forEach((p) => p.classList.remove("active"));
+      tab.classList.add("active");
+      document.getElementById(targetId)?.classList.add("active");
+    });
+  });
+}
+function downloadAsZip(files) {
+  const blob = createZip(files);
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "dataflow-generated.zip";
+  a.click();
+  URL.revokeObjectURL(a.href);
 }
 function updatePlots(snap) {
   const plotCanvas = document.getElementById("df-plot-canvas");
@@ -1717,20 +5431,20 @@ setLoadSim(loadSim);
 function setMode(mode) {
   setCurrentMode(mode);
   document.querySelectorAll("#mode-switcher button").forEach((b) => b.classList.toggle("active", b.dataset.mode === mode));
-  $("cam-sidebar-content").style.display = mode === "cam" ? "block" : "none";
-  $("sketch-sidebar-content").style.display = mode === "sketch" ? "block" : "none";
-  $("dataflow-sidebar-content").style.display = mode === "dataflow" ? "block" : "none";
-  $canvas("preview-canvas").style.display = mode === "cam" ? "block" : "none";
-  $("preview-header").style.display = mode === "cam" ? "block" : "none";
+  $("cam-sidebar-content").classList.toggle("hidden", mode !== "cam");
+  $("sketch-sidebar-content").classList.toggle("hidden", mode !== "sketch");
+  $("dataflow-sidebar-content").classList.toggle("hidden", mode !== "dataflow");
+  document.getElementById("preview-canvas").classList.toggle("hidden", mode !== "cam");
+  $("preview-header").classList.toggle("hidden", mode !== "cam");
   $("sketch-canvas-wrap").style.display = mode === "sketch" ? "flex" : "none";
   const app = document.querySelector(".app");
   app.classList.toggle("sketch-mode", mode === "sketch");
   app.classList.toggle("dataflow-mode", mode === "dataflow");
   if (mode === "sketch") {
-    requestAnimationFrame(() => {
+    requestAnimationFrame(() => requestAnimationFrame(() => {
       resizeSketchCanvas();
       redrawSketch2();
-    });
+    }));
   } else if (mode === "dataflow") {
     activateDataflow();
   } else {
@@ -1760,7 +5474,7 @@ new ResizeObserver(() => {
 $("sketch-to-cam").addEventListener("click", () => {
   if (sketchShapes.length === 0) {
     $("sketch-status").textContent = "Draw at least one shape first.";
-    $("sketch-status").className = "status error";
+    $("sketch-status").className = "text-xs mt-2 min-h-4 text-danger";
     return;
   }
   const svgText = sketchToSvg();
@@ -1770,7 +5484,7 @@ $("sketch-to-cam").addEventListener("click", () => {
   setMode("cam");
   tryPreview();
   $("status").textContent = "Sketch loaded \u2014 configure and generate.";
-  $("status").className = "status ok";
+  $("status").className = "text-xs mt-2 min-h-4 text-success";
 });
 async function boot() {
   try {
@@ -1778,10 +5492,10 @@ async function boot() {
     setWasmReady(true);
     initDataflow();
     $("status").textContent = "WASM loaded \u2014 drop a file to begin.";
-    $("status").className = "status ok";
+    $("status").className = "text-xs mt-2 min-h-4 text-success";
   } catch (e) {
     $("status").textContent = "Failed to load WASM: " + e;
-    $("status").className = "status error";
+    $("status").className = "text-xs mt-2 min-h-4 text-danger";
   }
 }
 boot();
