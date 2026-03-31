@@ -4567,6 +4567,44 @@ var HilClient = class {
         break;
     }
   }
+  // ── DAG / PubSub HTTP methods ──────────────────────────────────
+  /** Base URL for HTTP API (derived from WebSocket URL). */
+  get httpBase() {
+    return this.url.replace(/^ws/, "http").replace(/\/ws\/?$/, "");
+  }
+  /** Deploy a CBOR-encoded DAG. Returns {ok, nodes} or {error}. */
+  async deployDag(cborBytes) {
+    const resp = await fetch(`${this.httpBase}/api/dag`, {
+      method: "POST",
+      body: cborBytes
+    });
+    return resp.json();
+  }
+  /** Tick the DAG once. Returns {ok} or {error}. */
+  async tick() {
+    const resp = await fetch(`${this.httpBase}/api/tick`, { method: "POST" });
+    return resp.json();
+  }
+  /** Get all pubsub topic values. Returns {topic: value, ...}. */
+  async getPubsub() {
+    const resp = await fetch(`${this.httpBase}/api/pubsub`);
+    return resp.json();
+  }
+  /** Get registered input/output channel names. */
+  async getChannels() {
+    const resp = await fetch(`${this.httpBase}/api/channels`);
+    return resp.json();
+  }
+  /** Get DAG status. */
+  async getStatus() {
+    const resp = await fetch(`${this.httpBase}/api/status`);
+    return resp.json();
+  }
+  /** Toggle debug mode (publishes _dbg/<index> topics). */
+  async toggleDebug() {
+    const resp = await fetch(`${this.httpBase}/api/debug`, { method: "POST" });
+    return resp.json();
+  }
 };
 function parseBusList(msg) {
   const raw = msg[1];
