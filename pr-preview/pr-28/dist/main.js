@@ -6519,6 +6519,7 @@ async function boot() {
     initDataflow();
     initPanel();
     initVersion();
+    setMode("dataflow");
     $("status").textContent = "WASM loaded \u2014 drop a file to begin.";
     $("status").className = "text-xs mt-2 min-h-4 text-success";
   } catch (e) {
