@@ -1479,7 +1479,11 @@ function setupWireDrag(workspace, nodeLayer, svg, mgr2, _getSnap, getPanZoom, on
   function onPointerMove(e) {
     if (!wireDrag) return;
     const world = screenToWorld(e.clientX, e.clientY);
-    wireDrag.dragPath.setAttribute("d", edgePath(wireDrag.fromX, wireDrag.fromY, world.x, world.y));
+    if (wireDrag.isOutput) {
+      wireDrag.dragPath.setAttribute("d", edgePath(wireDrag.fromX, wireDrag.fromY, world.x, world.y));
+    } else {
+      wireDrag.dragPath.setAttribute("d", edgePath(world.x, world.y, wireDrag.fromX, wireDrag.fromY));
+    }
   }
   function onPointerUp(e) {
     if (!wireDrag) return;
