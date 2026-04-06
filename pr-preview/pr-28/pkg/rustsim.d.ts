@@ -170,6 +170,12 @@ export function dataflow_tcp_inject(graph_id: number, socket_id: number, data: U
 export function dataflow_update_block(graph_id: number, block_id: number, block_type: string, config_json: string): void;
 
 /**
+ * Validate whether a connection between two ports is valid.
+ * Returns empty string on success, or an error message on failure.
+ */
+export function dataflow_validate_connection(graph_id: number, from_block: number, from_port: number, to_block: number, to_port: number): string;
+
+/**
  * Add a widget to a panel from JSON config.
  */
 export function panel_add_widget(panel_id: number, config_json: string): number;
@@ -278,6 +284,7 @@ export interface InitOutput {
     readonly dataflow_tcp_drain: (a: number, b: number) => [number, number, number];
     readonly dataflow_tcp_inject: (a: number, b: number, c: number, d: number) => [number, number];
     readonly dataflow_update_block: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number];
+    readonly dataflow_validate_connection: (a: number, b: number, c: number, d: number, e: number) => [number, number];
     readonly panel_add_widget: (a: number, b: number, c: number) => [number, number, number];
     readonly panel_collect_outputs: (a: number) => [number, number, number, number];
     readonly panel_destroy: (a: number) => void;

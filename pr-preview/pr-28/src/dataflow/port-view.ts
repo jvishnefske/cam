@@ -153,7 +153,12 @@ export function setupWireDrag(
     if (!wireDrag) return;
 
     // Check if we dropped on a port
-    const target = e.target as HTMLElement;
+    const target = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null;
+    if (!target) {
+      wireDrag.dragPath.remove();
+      wireDrag = null;
+      return;
+    }
     if (target.classList.contains('df-port')) {
       const nodeEl = target.closest('.df-node') as HTMLElement | null;
       if (nodeEl) {
@@ -172,6 +177,9 @@ export function setupWireDrag(
             onConnect();
           } catch (err) {
             console.warn('connect failed:', err);
+            // Flash target port red briefly
+            target.style.backgroundColor = 'var(--color-danger)';
+            setTimeout(() => { target.style.backgroundColor = ''; }, 500);
           }
         }
       }

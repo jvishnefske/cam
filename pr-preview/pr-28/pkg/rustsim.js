@@ -656,6 +656,29 @@ export function dataflow_update_block(graph_id, block_id, block_type, config_jso
 }
 
 /**
+ * Validate whether a connection between two ports is valid.
+ * Returns empty string on success, or an error message on failure.
+ * @param {number} graph_id
+ * @param {number} from_block
+ * @param {number} from_port
+ * @param {number} to_block
+ * @param {number} to_port
+ * @returns {string}
+ */
+export function dataflow_validate_connection(graph_id, from_block, from_port, to_block, to_port) {
+    let deferred1_0;
+    let deferred1_1;
+    try {
+        const ret = wasm.dataflow_validate_connection(graph_id, from_block, from_port, to_block, to_port);
+        deferred1_0 = ret[0];
+        deferred1_1 = ret[1];
+        return getStringFromWasm0(ret[0], ret[1]);
+    } finally {
+        wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+    }
+}
+
+/**
  * Add a widget to a panel from JSON config.
  * @param {number} panel_id
  * @param {string} config_json

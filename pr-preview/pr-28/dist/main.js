@@ -1483,7 +1483,12 @@ function setupWireDrag(workspace, nodeLayer, svg, mgr2, _getSnap, getPanZoom, on
   }
   function onPointerUp(e) {
     if (!wireDrag) return;
-    const target2 = e.target;
+    const target2 = document.elementFromPoint(e.clientX, e.clientY);
+    if (!target2) {
+      wireDrag.dragPath.remove();
+      wireDrag = null;
+      return;
+    }
     if (target2.classList.contains("df-port")) {
       const nodeEl = target2.closest(".df-node");
       if (nodeEl) {
@@ -1501,6 +1506,10 @@ function setupWireDrag(workspace, nodeLayer, svg, mgr2, _getSnap, getPanZoom, on
             onConnect();
           } catch (err) {
             console.warn("connect failed:", err);
+            target2.style.backgroundColor = "var(--color-danger)";
+            setTimeout(() => {
+              target2.style.backgroundColor = "";
+            }, 500);
           }
         }
       }

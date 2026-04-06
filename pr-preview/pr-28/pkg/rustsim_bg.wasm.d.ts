@@ -46,6 +46,7 @@ export const dataflow_snapshot: (a: number) => [number, number, number, number];
 export const dataflow_tcp_drain: (a: number, b: number) => [number, number, number];
 export const dataflow_tcp_inject: (a: number, b: number, c: number, d: number) => [number, number];
 export const dataflow_update_block: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number];
+export const dataflow_validate_connection: (a: number, b: number, c: number, d: number, e: number) => [number, number];
 export const panel_add_widget: (a: number, b: number, c: number) => [number, number, number];
 export const panel_collect_outputs: (a: number) => [number, number, number, number];
 export const panel_destroy: (a: number) => void;
