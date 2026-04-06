@@ -1488,7 +1488,18 @@ function setupWireDrag(workspace, nodeLayer, svg, mgr2, _getSnap, getPanZoom, on
   function onPointerUp(e) {
     if (!wireDrag) return;
     const target2 = document.elementFromPoint(e.clientX, e.clientY);
+    const trace = {
+      event: "wire-drop",
+      fromBlock: wireDrag.fromBlock,
+      fromPort: wireDrag.fromPort,
+      fromIsOutput: wireDrag.isOutput,
+      targetElement: target2?.tagName,
+      targetClasses: target2?.className,
+      targetDataSide: target2?.dataset?.side,
+      targetDataIndex: target2?.dataset?.index
+    };
     if (!target2) {
+      console.log("[wire-trace] no element at point", trace);
       wireDrag.dragPath.remove();
       wireDrag = null;
       return;
@@ -1500,23 +1511,39 @@ function setupWireDrag(workspace, nodeLayer, svg, mgr2, _getSnap, getPanZoom, on
         const toSide = target2.dataset.side;
         const toPortIndex = parseInt(target2.dataset.index);
         const toIsOutput = toSide === "output";
+        trace.toBlock = toBlockId;
+        trace.toPort = toPortIndex;
+        trace.toIsOutput = toIsOutput;
+        trace.sidesMatch = toIsOutput === wireDrag.isOutput;
         if (toIsOutput !== wireDrag.isOutput) {
+          const outBlock = wireDrag.isOutput ? wireDrag.fromBlock : toBlockId;
+          const outPort = wireDrag.isOutput ? wireDrag.fromPort : toPortIndex;
+          const inBlock = wireDrag.isOutput ? toBlockId : wireDrag.fromBlock;
+          const inPort = wireDrag.isOutput ? toPortIndex : wireDrag.fromPort;
+          trace.connectCall = { outBlock, outPort, inBlock, inPort };
           try {
-            if (wireDrag.isOutput) {
-              mgr2.connect(wireDrag.fromBlock, wireDrag.fromPort, toBlockId, toPortIndex);
-            } else {
-              mgr2.connect(toBlockId, toPortIndex, wireDrag.fromBlock, wireDrag.fromPort);
-            }
+            mgr2.connect(outBlock, outPort, inBlock, inPort);
+            trace.result = "success";
+            console.log("[wire-trace]", trace);
             onConnect();
           } catch (err) {
-            console.warn("connect failed:", err);
+            trace.result = "error";
+            trace.error = String(err);
+            console.error("[wire-trace]", trace);
+            const origColor = target2.style.backgroundColor;
             target2.style.backgroundColor = "var(--color-danger)";
             setTimeout(() => {
-              target2.style.backgroundColor = "";
+              target2.style.backgroundColor = origColor;
             }, 500);
           }
+        } else {
+          trace.result = "same-side-skip";
+          console.log("[wire-trace]", trace);
         }
       }
+    } else {
+      trace.result = "not-a-port";
+      console.log("[wire-trace]", trace);
     }
     wireDrag.dragPath.remove();
     wireDrag = null;
