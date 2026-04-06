@@ -1498,8 +1498,14 @@ function setupWireDrag(workspace, nodeLayer, svg, mgr2, _getSnap, getPanZoom, on
       targetDataSide: target2?.dataset?.side,
       targetDataIndex: target2?.dataset?.index
     };
+    const tel = mgr2.telemetry;
+    function emitTrace(t) {
+      tel?.trace("wire-drop", t);
+      console.log("[wire-trace]", t);
+    }
     if (!target2) {
-      console.log("[wire-trace] no element at point", trace);
+      trace.result = "no-element";
+      emitTrace(trace);
       wireDrag.dragPath.remove();
       wireDrag = null;
       return;
@@ -1524,12 +1530,12 @@ function setupWireDrag(workspace, nodeLayer, svg, mgr2, _getSnap, getPanZoom, on
           try {
             mgr2.connect(outBlock, outPort, inBlock, inPort);
             trace.result = "success";
-            console.log("[wire-trace]", trace);
+            emitTrace(trace);
             onConnect();
           } catch (err) {
             trace.result = "error";
             trace.error = String(err);
-            console.error("[wire-trace]", trace);
+            emitTrace(trace);
             const origColor = target2.style.backgroundColor;
             target2.style.backgroundColor = "var(--color-danger)";
             setTimeout(() => {
@@ -1538,12 +1544,12 @@ function setupWireDrag(workspace, nodeLayer, svg, mgr2, _getSnap, getPanZoom, on
           }
         } else {
           trace.result = "same-side-skip";
-          console.log("[wire-trace]", trace);
+          emitTrace(trace);
         }
       }
     } else {
       trace.result = "not-a-port";
-      console.log("[wire-trace]", trace);
+      emitTrace(trace);
     }
     wireDrag.dragPath.remove();
     wireDrag = null;
@@ -5057,6 +5063,11 @@ var TelemetryPublisher = class {
     this.debug = on;
     if (on) this.seq = 0;
   }
+  /** Publish a debug trace event (only when debug mode is on). */
+  trace(category, data) {
+    if (!this.debug) return;
+    this.publish({ tag: 57, category, data });
+  }
   publish(event) {
     if (!this.enabled || !this.ws || this.ws.readyState !== WebSocket.OPEN) return;
     const payload = this.encodeEvent(event);
@@ -5086,6 +5097,8 @@ var TelemetryPublisher = class {
         return { 0: 54, 1: event.channelId };
       case 55:
         return { 0: 55 };
+      case 57:
+        return { 0: 57, 1: event.category, 2: JSON.stringify(event.data) };
     }
   }
 };
