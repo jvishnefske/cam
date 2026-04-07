@@ -1308,6 +1308,9 @@ var DataflowManager = class {
 var NODE_W = 140;
 var PORT_OFFSET_Y = 30;
 var PORT_SPACING = 20;
+function unwrapId(v) {
+  return typeof v === "number" ? v : v[0];
+}
 function edgePath(x1, y1, x2, y2) {
   const dx = Math.abs(x2 - x1);
   const cpX = Math.max(dx * 0.5, Math.min(Math.abs(y2 - y1), 50));
@@ -1321,10 +1324,10 @@ function reconcileEdges(svg, edges, channels, blocks, positions, selectedEdge = 
   for (const b of blocks) blockMap.set(b.id, b);
   const currentIds = /* @__PURE__ */ new Set();
   for (const ch of channels) {
-    const chId = ch.id[0];
+    const chId = unwrapId(ch.id);
     currentIds.add(chId);
-    const fromBlock = blockMap.get(ch.from_block[0]);
-    const toBlock = blockMap.get(ch.to_block[0]);
+    const fromBlock = blockMap.get(unwrapId(ch.from_block));
+    const toBlock = blockMap.get(unwrapId(ch.to_block));
     if (!fromBlock || !toBlock) continue;
     const fromPos = positions.get(fromBlock.id) ?? { x: 0, y: 0 };
     const toPos = positions.get(toBlock.id) ?? { x: 0, y: 0 };
@@ -1359,12 +1362,12 @@ function updateEdgesForBlock(edges, channels, blocks, positions, blockId) {
   const blockMap = /* @__PURE__ */ new Map();
   for (const b of blocks) blockMap.set(b.id, b);
   for (const ch of channels) {
-    if (ch.from_block[0] !== blockId && ch.to_block[0] !== blockId) continue;
-    const chId = ch.id[0];
+    if (unwrapId(ch.from_block) !== blockId && unwrapId(ch.to_block) !== blockId) continue;
+    const chId = unwrapId(ch.id);
     const path = edges.paths.get(chId);
     if (!path) continue;
-    const fromBlock = blockMap.get(ch.from_block[0]);
-    const toBlock = blockMap.get(ch.to_block[0]);
+    const fromBlock = blockMap.get(unwrapId(ch.from_block));
+    const toBlock = blockMap.get(unwrapId(ch.to_block));
     if (!fromBlock || !toBlock) continue;
     const fromPos = positions.get(fromBlock.id) ?? { x: 0, y: 0 };
     const toPos = positions.get(toBlock.id) ?? { x: 0, y: 0 };
@@ -1458,6 +1461,11 @@ function setupWireDrag(workspace, nodeLayer, svg, mgr2, _getSnap, getPanZoom, on
       y: (clientY - rect.top - panY) / scale
     };
   }
+  function emitTrace(category, data) {
+    mgr2.telemetry?.trace(category, data);
+    console.log(`[${category}]`, data);
+  }
+  let moveTraceThrottle = 0;
   function onPointerDown(e) {
     const target2 = e.target;
     if (!target2.classList.contains("df-port")) return;
@@ -1473,8 +1481,18 @@ function setupWireDrag(workspace, nodeLayer, svg, mgr2, _getSnap, getPanZoom, on
     const dragPath = createDragWire(svg);
     dragPath.setAttribute("stroke", theme.colors.wireActive);
     wireDrag = { fromBlock: blockId, fromPort: portIndex, fromX, fromY, isOutput, dragPath };
+    emitTrace("wire-start", {
+      blockId,
+      portIndex,
+      side,
+      isOutput,
+      clientX: e.clientX,
+      clientY: e.clientY,
+      pointerId: e.pointerId
+    });
     e.preventDefault();
     e.stopPropagation();
+    target2.releasePointerCapture(e.pointerId);
   }
   function onPointerMove(e) {
     if (!wireDrag) return;
@@ -1484,28 +1502,58 @@ function setupWireDrag(workspace, nodeLayer, svg, mgr2, _getSnap, getPanZoom, on
     } else {
       wireDrag.dragPath.setAttribute("d", edgePath(world.x, world.y, wireDrag.fromX, wireDrag.fromY));
     }
+    const now = Date.now();
+    if (now - moveTraceThrottle > 500) {
+      moveTraceThrottle = now;
+      const hoverEl = document.elementFromPoint(e.clientX, e.clientY);
+      emitTrace("wire-move", {
+        clientX: e.clientX,
+        clientY: e.clientY,
+        worldX: world.x.toFixed(1),
+        worldY: world.y.toFixed(1),
+        hoverTag: hoverEl?.tagName,
+        hoverClass: hoverEl?.className?.split?.(" ")?.[0],
+        hoverIsPort: hoverEl?.classList?.contains("df-port") ?? false,
+        eTarget: e.target?.className?.split?.(" ")?.[0]
+      });
+    }
   }
   function onPointerUp(e) {
     if (!wireDrag) return;
-    const target2 = document.elementFromPoint(e.clientX, e.clientY);
+    const eTarget = e.target;
+    let target2 = null;
+    if (eTarget?.classList.contains("df-port")) {
+      target2 = eTarget;
+    } else if (eTarget) {
+      target2 = eTarget.closest(".df-port");
+    }
+    if (!target2) {
+      const efp = document.elementFromPoint(e.clientX, e.clientY);
+      if (efp?.classList.contains("df-port")) {
+        target2 = efp;
+      } else if (efp) {
+        target2 = efp.closest(".df-port");
+      }
+    }
     const trace = {
       event: "wire-drop",
       fromBlock: wireDrag.fromBlock,
       fromPort: wireDrag.fromPort,
       fromIsOutput: wireDrag.isOutput,
-      targetElement: target2?.tagName,
-      targetClasses: target2?.className,
+      clientX: e.clientX,
+      clientY: e.clientY,
+      eTargetTag: eTarget?.tagName,
+      eTargetClass: eTarget?.className,
+      eTargetIsPort: eTarget?.classList?.contains("df-port") ?? false,
+      elementFromPointTag: target2?.tagName,
+      elementFromPointClass: target2?.className,
+      elementFromPointIsPort: target2?.classList?.contains("df-port") ?? false,
       targetDataSide: target2?.dataset?.side,
       targetDataIndex: target2?.dataset?.index
     };
-    const tel = mgr2.telemetry;
-    function emitTrace(t) {
-      tel?.trace("wire-drop", t);
-      console.log("[wire-trace]", t);
-    }
     if (!target2) {
       trace.result = "no-element";
-      emitTrace(trace);
+      emitTrace("wire-drop", trace);
       wireDrag.dragPath.remove();
       wireDrag = null;
       return;
@@ -1530,12 +1578,12 @@ function setupWireDrag(workspace, nodeLayer, svg, mgr2, _getSnap, getPanZoom, on
           try {
             mgr2.connect(outBlock, outPort, inBlock, inPort);
             trace.result = "success";
-            emitTrace(trace);
+            emitTrace("wire-drop", trace);
             onConnect();
           } catch (err) {
             trace.result = "error";
             trace.error = String(err);
-            emitTrace(trace);
+            emitTrace("wire-drop", trace);
             const origColor = target2.style.backgroundColor;
             target2.style.backgroundColor = "var(--color-danger)";
             setTimeout(() => {
@@ -1544,12 +1592,12 @@ function setupWireDrag(workspace, nodeLayer, svg, mgr2, _getSnap, getPanZoom, on
           }
         } else {
           trace.result = "same-side-skip";
-          emitTrace(trace);
+          emitTrace("wire-drop", trace);
         }
       }
     } else {
       trace.result = "not-a-port";
-      emitTrace(trace);
+      emitTrace("wire-drop", trace);
     }
     wireDrag.dragPath.remove();
     wireDrag = null;
@@ -1708,7 +1756,14 @@ var DEFAULT_CONFIGS = {
   gpio_out: { pin: 13 },
   gpio_in: { pin: 2 },
   uart_tx: { port: 0, baud: 115200 },
-  uart_rx: { port: 0, baud: 115200 }
+  uart_rx: { port: 0, baud: 115200 },
+  pubsub_source: { topic: "default", port_kind: "Float" },
+  pubsub_sink: { topic: "default", port_kind: "Float" },
+  state_machine: { states: ["idle"], initial: "idle", transitions: [] },
+  encoder: { channel: 0 },
+  ssd1306_display: { i2c_bus: 0, address: 60 },
+  tmc2209_stepper: { uart_port: 0, uart_addr: 0, steps_per_rev: 200, microsteps: 16 },
+  tmc2209_stallguard: { uart_port: 0, uart_addr: 0, threshold: 50 }
 };
 function showPalette(workspace, blockTypes, mgr2, screenX, screenY, worldX, worldY, onBlockAdded) {
   workspace.querySelector(".df-palette")?.remove();
@@ -4889,6 +4944,9 @@ function createField(parent, label, type, value) {
 }
 
 // src/dataflow/storage.ts
+function unwrapId2(v) {
+  return typeof v === "number" ? v : v[0];
+}
 var KEY_PROJECTS = "webcam:projects";
 var KEY_ACTIVE = "webcam:active";
 var projectKey = (name) => `webcam:project:${name}`;
@@ -4903,9 +4961,9 @@ function serializeProject(name, snap, positions, viewport) {
         config: b.config
       })),
       channels: snap.channels.map((c) => ({
-        fromBlock: c.from_block[0],
+        fromBlock: unwrapId2(c.from_block),
         fromPort: c.from_port,
-        toBlock: c.to_block[0],
+        toBlock: unwrapId2(c.to_block),
         toPort: c.to_port
       }))
     },
@@ -5104,6 +5162,9 @@ var TelemetryPublisher = class {
 };
 
 // src/dataflow/index.ts
+function unwrapId3(v) {
+  return typeof v === "number" ? v : v[0];
+}
 var mgr = null;
 var editor = null;
 var hilClient = null;
@@ -5407,10 +5468,10 @@ function updateEdgeInfo(channelId, snap) {
     infoEl.appendChild(span);
     return;
   }
-  const ch = snap.channels.find((c) => c.id[0] === channelId);
+  const ch = snap.channels.find((c) => unwrapId3(c.id) === channelId);
   if (!ch) return;
-  const fromBlock = snap.blocks.find((b) => b.id === ch.from_block[0]);
-  const toBlock = snap.blocks.find((b) => b.id === ch.to_block[0]);
+  const fromBlock = snap.blocks.find((b) => b.id === unwrapId3(ch.from_block));
+  const toBlock = snap.blocks.find((b) => b.id === unwrapId3(ch.to_block));
   infoEl.textContent = "";
   const title = document.createElement("b");
   title.textContent = "Channel";
@@ -5422,9 +5483,9 @@ function updateEdgeInfo(channelId, snap) {
   infoEl.appendChild(document.createElement("br"));
   const detailDiv = document.createElement("div");
   detailDiv.className = "mt-1.5 text-xs";
-  const fromName = fromBlock ? `${fromBlock.name}` : `Block ${ch.from_block[0]}`;
+  const fromName = fromBlock ? `${fromBlock.name}` : `Block ${unwrapId3(ch.from_block)}`;
   const fromPortName = fromBlock?.outputs[ch.from_port]?.name ?? `port ${ch.from_port}`;
-  const toName = toBlock ? `${toBlock.name}` : `Block ${ch.to_block[0]}`;
+  const toName = toBlock ? `${toBlock.name}` : `Block ${unwrapId3(ch.to_block)}`;
   const toPortName = toBlock?.inputs[ch.to_port]?.name ?? `port ${ch.to_port}`;
   const fromRow = document.createElement("div");
   fromRow.textContent = `From: ${fromName} \u2192 ${fromPortName}`;
