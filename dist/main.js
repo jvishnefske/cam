@@ -1,5 +1,6 @@
 // src/main.ts
 import init from "../pkg/rustcam.js";
+import initSim from "../pkg/rustsim.js";
 
 // src/dom.ts
 function $(id) {
@@ -1182,7 +1183,7 @@ function drawConstraintOverlay() {
 }
 
 // src/dataflow/index.ts
-import { dataflow_codegen, dataflow_codegen_multi } from "../pkg/rustcam.js";
+import { dataflow_codegen, dataflow_codegen_multi } from "../pkg/rustsim.js";
 
 // src/dataflow/graph.ts
 import {
@@ -1198,7 +1199,7 @@ import {
   dataflow_set_speed,
   dataflow_snapshot,
   dataflow_block_types
-} from "../pkg/rustcam.js";
+} from "../pkg/rustsim.js";
 var DataflowManager = class {
   graphId;
   running = false;
@@ -1206,6 +1207,8 @@ var DataflowManager = class {
   lastTime = null;
   /** UI positions for each block, keyed by block id. */
   positions = /* @__PURE__ */ new Map();
+  /** Optional telemetry publisher for CRUD events. */
+  telemetry = null;
   /** Callback invoked after each tick with the latest snapshot. */
   onTick = null;
   constructor(dt = 0.01) {
@@ -1218,20 +1221,26 @@ var DataflowManager = class {
   addBlock(blockType, config, x = 100, y = 100) {
     const id = dataflow_add_block(this.graphId, blockType, JSON.stringify(config));
     this.positions.set(id, { x, y });
+    this.telemetry?.publish({ tag: 50, blockId: id, blockType, config, x, y });
     return id;
   }
   updateBlock(blockId, blockType, config) {
     dataflow_update_block(this.graphId, blockId, blockType, JSON.stringify(config));
+    this.telemetry?.publish({ tag: 52, blockId, blockType, config });
   }
   removeBlock(blockId) {
     dataflow_remove_block(this.graphId, blockId);
     this.positions.delete(blockId);
+    this.telemetry?.publish({ tag: 51, blockId });
   }
   connect(fromBlock, fromPort, toBlock, toPort) {
-    return dataflow_connect(this.graphId, fromBlock, fromPort, toBlock, toPort);
+    const id = dataflow_connect(this.graphId, fromBlock, fromPort, toBlock, toPort);
+    this.telemetry?.publish({ tag: 53, fromBlock, fromPort, toBlock, toPort, channelId: id });
+    return id;
   }
   disconnect(channelId) {
     dataflow_disconnect(this.graphId, channelId);
+    this.telemetry?.publish({ tag: 54, channelId });
   }
   setSpeed(speed) {
     dataflow_set_speed(this.graphId, speed);
@@ -1299,6 +1308,9 @@ var DataflowManager = class {
 var NODE_W = 140;
 var PORT_OFFSET_Y = 30;
 var PORT_SPACING = 20;
+function unwrapId(v) {
+  return typeof v === "number" ? v : v[0];
+}
 function edgePath(x1, y1, x2, y2) {
   const dx = Math.abs(x2 - x1);
   const cpX = Math.max(dx * 0.5, Math.min(Math.abs(y2 - y1), 50));
@@ -1312,10 +1324,10 @@ function reconcileEdges(svg, edges, channels, blocks, positions, selectedEdge = 
   for (const b of blocks) blockMap.set(b.id, b);
   const currentIds = /* @__PURE__ */ new Set();
   for (const ch of channels) {
-    const chId = ch.id[0];
+    const chId = unwrapId(ch.id);
     currentIds.add(chId);
-    const fromBlock = blockMap.get(ch.from_block[0]);
-    const toBlock = blockMap.get(ch.to_block[0]);
+    const fromBlock = blockMap.get(unwrapId(ch.from_block));
+    const toBlock = blockMap.get(unwrapId(ch.to_block));
     if (!fromBlock || !toBlock) continue;
     const fromPos = positions.get(fromBlock.id) ?? { x: 0, y: 0 };
     const toPos = positions.get(toBlock.id) ?? { x: 0, y: 0 };
@@ -1350,12 +1362,12 @@ function updateEdgesForBlock(edges, channels, blocks, positions, blockId) {
   const blockMap = /* @__PURE__ */ new Map();
   for (const b of blocks) blockMap.set(b.id, b);
   for (const ch of channels) {
-    if (ch.from_block[0] !== blockId && ch.to_block[0] !== blockId) continue;
-    const chId = ch.id[0];
+    if (unwrapId(ch.from_block) !== blockId && unwrapId(ch.to_block) !== blockId) continue;
+    const chId = unwrapId(ch.id);
     const path = edges.paths.get(chId);
     if (!path) continue;
-    const fromBlock = blockMap.get(ch.from_block[0]);
-    const toBlock = blockMap.get(ch.to_block[0]);
+    const fromBlock = blockMap.get(unwrapId(ch.from_block));
+    const toBlock = blockMap.get(unwrapId(ch.to_block));
     if (!fromBlock || !toBlock) continue;
     const fromPos = positions.get(fromBlock.id) ?? { x: 0, y: 0 };
     const toPos = positions.get(toBlock.id) ?? { x: 0, y: 0 };
@@ -1449,6 +1461,11 @@ function setupWireDrag(workspace, nodeLayer, svg, mgr2, _getSnap, getPanZoom, on
       y: (clientY - rect.top - panY) / scale
     };
   }
+  function emitTrace(category, data) {
+    mgr2.telemetry?.trace(category, data);
+    console.log(`[${category}]`, data);
+  }
+  let moveTraceThrottle = 0;
   function onPointerDown(e) {
     const target2 = e.target;
     if (!target2.classList.contains("df-port")) return;
@@ -1464,17 +1481,83 @@ function setupWireDrag(workspace, nodeLayer, svg, mgr2, _getSnap, getPanZoom, on
     const dragPath = createDragWire(svg);
     dragPath.setAttribute("stroke", theme.colors.wireActive);
     wireDrag = { fromBlock: blockId, fromPort: portIndex, fromX, fromY, isOutput, dragPath };
+    emitTrace("wire-start", {
+      blockId,
+      portIndex,
+      side,
+      isOutput,
+      clientX: e.clientX,
+      clientY: e.clientY,
+      pointerId: e.pointerId
+    });
     e.preventDefault();
     e.stopPropagation();
+    target2.releasePointerCapture(e.pointerId);
   }
   function onPointerMove(e) {
     if (!wireDrag) return;
     const world = screenToWorld(e.clientX, e.clientY);
-    wireDrag.dragPath.setAttribute("d", edgePath(wireDrag.fromX, wireDrag.fromY, world.x, world.y));
+    if (wireDrag.isOutput) {
+      wireDrag.dragPath.setAttribute("d", edgePath(wireDrag.fromX, wireDrag.fromY, world.x, world.y));
+    } else {
+      wireDrag.dragPath.setAttribute("d", edgePath(world.x, world.y, wireDrag.fromX, wireDrag.fromY));
+    }
+    const now = Date.now();
+    if (now - moveTraceThrottle > 500) {
+      moveTraceThrottle = now;
+      const hoverEl = document.elementFromPoint(e.clientX, e.clientY);
+      emitTrace("wire-move", {
+        clientX: e.clientX,
+        clientY: e.clientY,
+        worldX: world.x.toFixed(1),
+        worldY: world.y.toFixed(1),
+        hoverTag: hoverEl?.tagName,
+        hoverClass: hoverEl?.className?.split?.(" ")?.[0],
+        hoverIsPort: hoverEl?.classList?.contains("df-port") ?? false,
+        eTarget: e.target?.className?.split?.(" ")?.[0]
+      });
+    }
   }
   function onPointerUp(e) {
     if (!wireDrag) return;
-    const target2 = e.target;
+    const eTarget = e.target;
+    let target2 = null;
+    if (eTarget?.classList.contains("df-port")) {
+      target2 = eTarget;
+    } else if (eTarget) {
+      target2 = eTarget.closest(".df-port");
+    }
+    if (!target2) {
+      const efp = document.elementFromPoint(e.clientX, e.clientY);
+      if (efp?.classList.contains("df-port")) {
+        target2 = efp;
+      } else if (efp) {
+        target2 = efp.closest(".df-port");
+      }
+    }
+    const trace = {
+      event: "wire-drop",
+      fromBlock: wireDrag.fromBlock,
+      fromPort: wireDrag.fromPort,
+      fromIsOutput: wireDrag.isOutput,
+      clientX: e.clientX,
+      clientY: e.clientY,
+      eTargetTag: eTarget?.tagName,
+      eTargetClass: eTarget?.className,
+      eTargetIsPort: eTarget?.classList?.contains("df-port") ?? false,
+      elementFromPointTag: target2?.tagName,
+      elementFromPointClass: target2?.className,
+      elementFromPointIsPort: target2?.classList?.contains("df-port") ?? false,
+      targetDataSide: target2?.dataset?.side,
+      targetDataIndex: target2?.dataset?.index
+    };
+    if (!target2) {
+      trace.result = "no-element";
+      emitTrace("wire-drop", trace);
+      wireDrag.dragPath.remove();
+      wireDrag = null;
+      return;
+    }
     if (target2.classList.contains("df-port")) {
       const nodeEl = target2.closest(".df-node");
       if (nodeEl) {
@@ -1482,19 +1565,39 @@ function setupWireDrag(workspace, nodeLayer, svg, mgr2, _getSnap, getPanZoom, on
         const toSide = target2.dataset.side;
         const toPortIndex = parseInt(target2.dataset.index);
         const toIsOutput = toSide === "output";
+        trace.toBlock = toBlockId;
+        trace.toPort = toPortIndex;
+        trace.toIsOutput = toIsOutput;
+        trace.sidesMatch = toIsOutput === wireDrag.isOutput;
         if (toIsOutput !== wireDrag.isOutput) {
+          const outBlock = wireDrag.isOutput ? wireDrag.fromBlock : toBlockId;
+          const outPort = wireDrag.isOutput ? wireDrag.fromPort : toPortIndex;
+          const inBlock = wireDrag.isOutput ? toBlockId : wireDrag.fromBlock;
+          const inPort = wireDrag.isOutput ? toPortIndex : wireDrag.fromPort;
+          trace.connectCall = { outBlock, outPort, inBlock, inPort };
           try {
-            if (wireDrag.isOutput) {
-              mgr2.connect(wireDrag.fromBlock, wireDrag.fromPort, toBlockId, toPortIndex);
-            } else {
-              mgr2.connect(toBlockId, toPortIndex, wireDrag.fromBlock, wireDrag.fromPort);
-            }
+            mgr2.connect(outBlock, outPort, inBlock, inPort);
+            trace.result = "success";
+            emitTrace("wire-drop", trace);
             onConnect();
           } catch (err) {
-            console.warn("connect failed:", err);
+            trace.result = "error";
+            trace.error = String(err);
+            emitTrace("wire-drop", trace);
+            const origColor = target2.style.backgroundColor;
+            target2.style.backgroundColor = "var(--color-danger)";
+            setTimeout(() => {
+              target2.style.backgroundColor = origColor;
+            }, 500);
           }
+        } else {
+          trace.result = "same-side-skip";
+          emitTrace("wire-drop", trace);
         }
       }
+    } else {
+      trace.result = "not-a-port";
+      emitTrace("wire-drop", trace);
     }
     wireDrag.dragPath.remove();
     wireDrag = null;
@@ -1538,6 +1641,11 @@ function reconcileNodes(nodeLayer, elements, blocks, positions, selectedId) {
       typeLabel.textContent = block.block_type;
       nodeEl.appendChild(typeLabel);
       createPorts(nodeEl, block.inputs, block.outputs, block.output_values);
+      if (block.block_type === "state_machine") {
+        const editorDiv = document.createElement("div");
+        editorDiv.className = "sm-editor-container";
+        nodeEl.appendChild(editorDiv);
+      }
       const h = nodeHeight(block);
       nodeEl.style.height = `${h}px`;
       nodeLayer.appendChild(nodeEl);
@@ -1653,7 +1761,14 @@ var DEFAULT_CONFIGS = {
   gpio_out: { pin: 13 },
   gpio_in: { pin: 2 },
   uart_tx: { port: 0, baud: 115200 },
-  uart_rx: { port: 0, baud: 115200 }
+  uart_rx: { port: 0, baud: 115200 },
+  pubsub_source: { topic: "default", port_kind: "Float" },
+  pubsub_sink: { topic: "default", port_kind: "Float" },
+  state_machine: { states: ["idle"], initial: "idle", transitions: [], input_topics: [], output_topics: [] },
+  encoder: { channel: 0 },
+  ssd1306_display: { i2c_bus: 0, address: 60 },
+  tmc2209_stepper: { uart_port: 0, uart_addr: 0, steps_per_rev: 200, microsteps: 16 },
+  tmc2209_stallguard: { uart_port: 0, uart_addr: 0, threshold: 50 }
 };
 function showPalette(workspace, blockTypes, mgr2, screenX, screenY, worldX, worldY, onBlockAdded) {
   workspace.querySelector(".df-palette")?.remove();
@@ -4438,6 +4553,10 @@ var HilClient = class {
   get connected() {
     return this.ws?.readyState === WebSocket.OPEN;
   }
+  /** Raw WebSocket reference (for telemetry attach). Null if not connected. */
+  get socket() {
+    return this.ws;
+  }
   connect(url) {
     this.url = url;
     this.shouldReconnect = true;
@@ -4830,6 +4949,9 @@ function createField(parent, label, type, value) {
 }
 
 // src/dataflow/storage.ts
+function unwrapId2(v) {
+  return typeof v === "number" ? v : v[0];
+}
 var KEY_PROJECTS = "webcam:projects";
 var KEY_ACTIVE = "webcam:active";
 var projectKey = (name) => `webcam:project:${name}`;
@@ -4844,9 +4966,9 @@ function serializeProject(name, snap, positions, viewport) {
         config: b.config
       })),
       channels: snap.channels.map((c) => ({
-        fromBlock: c.from_block[0],
+        fromBlock: unwrapId2(c.from_block),
         fromPort: c.from_port,
-        toBlock: c.to_block[0],
+        toBlock: unwrapId2(c.to_block),
         toPort: c.to_port
       }))
     },
@@ -4984,16 +5106,82 @@ function formatDate(iso) {
   }
 }
 
+// src/dataflow/telemetry.ts
+var TAG_DEBUG_WRAPPER = 56;
+var TelemetryPublisher = class {
+  ws = null;
+  enabled = false;
+  debug = false;
+  seq = 0;
+  attach(ws) {
+    this.ws = ws;
+  }
+  detach() {
+    this.ws = null;
+  }
+  setEnabled(on) {
+    this.enabled = on;
+  }
+  setDebug(on) {
+    this.debug = on;
+    if (on) this.seq = 0;
+  }
+  /** Publish a debug trace event (only when debug mode is on). */
+  trace(category, data) {
+    if (!this.debug) return;
+    this.publish({ tag: 57, category, data });
+  }
+  publish(event) {
+    if (!this.enabled || !this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+    const payload = this.encodeEvent(event);
+    if (this.debug) {
+      const wrapped = {
+        0: TAG_DEBUG_WRAPPER,
+        1: this.seq++,
+        2: performance.now(),
+        3: payload
+      };
+      this.ws.send(encode(wrapped));
+    } else {
+      this.ws.send(encode(payload));
+    }
+  }
+  encodeEvent(event) {
+    switch (event.tag) {
+      case 50:
+        return { 0: 50, 1: event.blockId, 2: event.blockType, 3: event.config, 4: event.x, 5: event.y };
+      case 51:
+        return { 0: 51, 1: event.blockId };
+      case 52:
+        return { 0: 52, 1: event.blockId, 2: event.blockType, 3: event.config };
+      case 53:
+        return { 0: 53, 1: event.fromBlock, 2: event.fromPort, 3: event.toBlock, 4: event.toPort, 5: event.channelId };
+      case 54:
+        return { 0: 54, 1: event.channelId };
+      case 55:
+        return { 0: 55 };
+      case 57:
+        return { 0: 57, 1: event.category, 2: JSON.stringify(event.data) };
+    }
+  }
+};
+
 // src/dataflow/index.ts
+function unwrapId3(v) {
+  return typeof v === "number" ? v : v[0];
+}
 var mgr = null;
 var editor = null;
 var hilClient = null;
 var activeProjectName = "Untitled";
 var triggerAutoSave = null;
+var telemetry = null;
 function initDataflow() {
   mgr = new DataflowManager(0.01);
   const container = $("dataflow-workspace");
   editor = new DataflowEditor(container, mgr);
+  telemetry = new TelemetryPublisher();
+  mgr.telemetry = telemetry;
   editor.onSelect = (blockId, snap) => {
     updateBlockInfo(blockId, snap);
   };
@@ -5028,6 +5216,8 @@ function initDataflow() {
     editor.destroy();
     mgr.destroy();
     mgr = new DataflowManager(dt);
+    if (telemetry) mgr.telemetry = telemetry;
+    telemetry?.publish({ tag: 55 });
     editor = new DataflowEditor(container, mgr);
     editor.onSelect = (blockId, snap) => updateBlockInfo(blockId, snap);
     editor.onEdgeSelect = (channelId, snap) => updateEdgeInfo(channelId, snap);
@@ -5161,6 +5351,8 @@ function initDataflow() {
     }
   });
   setupTargetCheckboxes();
+  setupBoardManager();
+  setupSidebarPalette();
   setupHilConnection();
   setupDfRightTabs();
 }
@@ -5281,10 +5473,10 @@ function updateEdgeInfo(channelId, snap) {
     infoEl.appendChild(span);
     return;
   }
-  const ch = snap.channels.find((c) => c.id[0] === channelId);
+  const ch = snap.channels.find((c) => unwrapId3(c.id) === channelId);
   if (!ch) return;
-  const fromBlock = snap.blocks.find((b) => b.id === ch.from_block[0]);
-  const toBlock = snap.blocks.find((b) => b.id === ch.to_block[0]);
+  const fromBlock = snap.blocks.find((b) => b.id === unwrapId3(ch.from_block));
+  const toBlock = snap.blocks.find((b) => b.id === unwrapId3(ch.to_block));
   infoEl.textContent = "";
   const title = document.createElement("b");
   title.textContent = "Channel";
@@ -5296,9 +5488,9 @@ function updateEdgeInfo(channelId, snap) {
   infoEl.appendChild(document.createElement("br"));
   const detailDiv = document.createElement("div");
   detailDiv.className = "mt-1.5 text-xs";
-  const fromName = fromBlock ? `${fromBlock.name}` : `Block ${ch.from_block[0]}`;
+  const fromName = fromBlock ? `${fromBlock.name}` : `Block ${unwrapId3(ch.from_block)}`;
   const fromPortName = fromBlock?.outputs[ch.from_port]?.name ?? `port ${ch.from_port}`;
-  const toName = toBlock ? `${toBlock.name}` : `Block ${ch.to_block[0]}`;
+  const toName = toBlock ? `${toBlock.name}` : `Block ${unwrapId3(ch.to_block)}`;
   const toPortName = toBlock?.inputs[ch.to_port]?.name ?? `port ${ch.to_port}`;
   const fromRow = document.createElement("div");
   fromRow.textContent = `From: ${fromName} \u2192 ${fromPortName}`;
@@ -5332,6 +5524,180 @@ function formatValue(val) {
       return `[${val.data.length} bytes]`;
     case "Series":
       return `[${val.data.length} samples]`;
+    default:
+      return String(val.data);
+  }
+}
+function setupSidebarPalette() {
+  const containerEl = document.getElementById("df-sidebar-palette");
+  const filterInput = document.getElementById("df-palette-filter");
+  if (!containerEl) return;
+  const container = containerEl;
+  const blockTypes = DataflowManager.blockTypes();
+  function render(filter) {
+    container.textContent = "";
+    const lower = filter.toLowerCase();
+    let lastCat = "";
+    for (const bt of blockTypes) {
+      if (filter && !bt.name.toLowerCase().includes(lower) && !bt.block_type.toLowerCase().includes(lower)) {
+        continue;
+      }
+      if (bt.category !== lastCat) {
+        lastCat = bt.category;
+        const header = document.createElement("div");
+        header.className = "text-[10px] text-text-dim uppercase tracking-wider px-2 pt-2 pb-1";
+        if (container.childNodes.length > 0) {
+          header.style.borderTop = "1px solid var(--color-border)";
+        }
+        header.textContent = bt.category;
+        container.appendChild(header);
+      }
+      const item = document.createElement("button");
+      item.className = "block w-full text-left text-xs px-2 py-1.5 cursor-pointer bg-transparent border-none text-text transition-colors";
+      item.style.cssText = "border-left: 2px solid transparent;";
+      item.addEventListener("mouseenter", () => {
+        item.style.background = "var(--color-border)";
+        item.style.borderLeftColor = "var(--color-accent)";
+      });
+      item.addEventListener("mouseleave", () => {
+        item.style.background = "transparent";
+        item.style.borderLeftColor = "transparent";
+      });
+      item.textContent = bt.name;
+      item.addEventListener("click", () => {
+        if (!mgr || !editor) return;
+        const config = DEFAULT_CONFIGS[bt.block_type] ?? {};
+        mgr.addBlock(bt.block_type, config, 200, 200);
+        editor.updateSnapshot();
+        editor.onChange?.();
+      });
+      container.appendChild(item);
+    }
+  }
+  render("");
+  filterInput?.addEventListener("input", () => render(filterInput.value));
+}
+var MCU_FAMILIES = [
+  { id: "Host", label: "Host (Simulation)" },
+  { id: "Rp2040", label: "RP2040 (Pico)" },
+  { id: "Stm32f4", label: "STM32F4" },
+  { id: "Stm32g0b1", label: "STM32G0B1" },
+  { id: "Esp32c3", label: "ESP32-C3" }
+];
+var deployBoards = [];
+var blockAssignments = /* @__PURE__ */ new Map();
+function setupBoardManager() {
+  const listEl = document.getElementById("df-board-list");
+  const nameInput = document.getElementById("df-board-name");
+  const mcuSelect = document.getElementById("df-board-mcu");
+  const addBtn = document.getElementById("df-board-add");
+  const assignEl = document.getElementById("df-block-assignments");
+  if (!listEl || !nameInput || !mcuSelect || !addBtn || !assignEl) return;
+  mcuSelect.textContent = "";
+  for (const fam of MCU_FAMILIES) {
+    const opt = document.createElement("option");
+    opt.value = fam.id;
+    opt.textContent = fam.label;
+    mcuSelect.appendChild(opt);
+  }
+  addBtn.addEventListener("click", () => {
+    const nodeId = nameInput.value.trim();
+    if (!nodeId) return;
+    const mcuFamily = mcuSelect.value;
+    if (deployBoards.some((b) => b.nodeId === nodeId)) return;
+    deployBoards.push({ nodeId, mcuFamily });
+    nameInput.value = "";
+    renderBoardList();
+    renderBlockAssignments();
+  });
+  function renderBoardList() {
+    if (!listEl) return;
+    listEl.textContent = "";
+    if (deployBoards.length === 0) {
+      const hint = document.createElement("span");
+      hint.className = "text-text-dim text-[11px]";
+      hint.textContent = "No boards added (single-board mode)";
+      listEl.appendChild(hint);
+      return;
+    }
+    for (let i = 0; i < deployBoards.length; i++) {
+      const b = deployBoards[i];
+      const row = document.createElement("div");
+      row.className = "flex items-center justify-between py-0.5";
+      const info = document.createElement("span");
+      info.textContent = `${b.nodeId} (${b.mcuFamily})`;
+      row.appendChild(info);
+      const removeBtn = document.createElement("button");
+      removeBtn.textContent = "\xD7";
+      removeBtn.className = "text-text-dim hover:text-danger text-sm leading-none ml-2 cursor-pointer";
+      removeBtn.addEventListener("click", () => {
+        deployBoards.splice(i, 1);
+        for (const [blockId, nodeId] of blockAssignments) {
+          if (nodeId === b.nodeId) blockAssignments.delete(blockId);
+        }
+        renderBoardList();
+        renderBlockAssignments();
+      });
+      row.appendChild(removeBtn);
+      listEl.appendChild(row);
+    }
+  }
+  function renderBlockAssignments() {
+    if (!assignEl || !mgr) return;
+    assignEl.textContent = "";
+    if (deployBoards.length === 0) return;
+    const snap = mgr.snapshot();
+    if (!snap || snap.blocks.length === 0) {
+      const hint = document.createElement("span");
+      hint.className = "text-text-dim text-[11px]";
+      hint.textContent = "Add blocks to assign them to boards";
+      assignEl.appendChild(hint);
+      return;
+    }
+    const header = document.createElement("b");
+    header.textContent = "Block Assignments";
+    header.className = "text-xs block mb-1";
+    assignEl.appendChild(header);
+    for (const block of snap.blocks) {
+      const row = document.createElement("div");
+      row.className = "flex items-center justify-between py-0.5 gap-1";
+      const label = document.createElement("span");
+      label.className = "truncate flex-1 text-[11px]";
+      label.textContent = `#${block.id} ${block.name}`;
+      row.appendChild(label);
+      const select = document.createElement("select");
+      select.className = "bg-bg border border-border text-text px-1 py-0.5 rounded text-[11px] focus:outline-none focus:border-accent";
+      const noneOpt = document.createElement("option");
+      noneOpt.value = "";
+      noneOpt.textContent = "(none)";
+      select.appendChild(noneOpt);
+      for (const board of deployBoards) {
+        const opt = document.createElement("option");
+        opt.value = board.nodeId;
+        opt.textContent = board.nodeId;
+        if (blockAssignments.get(block.id) === board.nodeId) {
+          opt.selected = true;
+        }
+        select.appendChild(opt);
+      }
+      select.addEventListener("change", () => {
+        if (select.value) {
+          blockAssignments.set(block.id, select.value);
+        } else {
+          blockAssignments.delete(block.id);
+        }
+      });
+      row.appendChild(select);
+      assignEl.appendChild(row);
+    }
+  }
+  renderBoardList();
+  if (editor) {
+    const prevOnSelect = editor.onSelect;
+    editor.onSelect = (blockId, snap) => {
+      prevOnSelect?.(blockId, snap);
+      renderBlockAssignments();
+    };
   }
 }
 var TARGET_OPTIONS = [
@@ -5383,12 +5749,17 @@ function setupHilConnection() {
       statusEl2.className = "text-xs text-success mb-2";
       connectBtn.textContent = "Disconnect";
       deployBtn.disabled = false;
+      if (telemetry && hilClient?.socket) {
+        telemetry.attach(hilClient.socket);
+        telemetry.setEnabled(true);
+      }
     };
     hilClient.onDisconnect = () => {
       statusEl2.textContent = "Disconnected";
       statusEl2.className = "text-xs text-text-dim mb-2";
       connectBtn.textContent = "Connect";
       deployBtn.disabled = true;
+      telemetry?.detach();
     };
     hilClient.onBusList = (buses) => {
       updateI2cBuses(i2cContainer, buses, hilClient);
@@ -5463,6 +5834,726 @@ function updatePlots(snap) {
   }
 }
 
+// src/dataflow/panel-manager.ts
+import {
+  panel_new,
+  panel_destroy,
+  panel_load,
+  panel_save,
+  panel_add_widget,
+  panel_remove_widget,
+  panel_update_widget,
+  panel_snapshot,
+  panel_set_topic,
+  panel_get_values,
+  panel_merge_values,
+  panel_collect_outputs
+} from "../pkg/rustsim.js";
+var PanelManager = class _PanelManager {
+  panelId;
+  constructor(name) {
+    this.panelId = panel_new(name);
+  }
+  destroy() {
+    panel_destroy(this.panelId);
+  }
+  /** Deserialize a PanelModel from JSON and wrap it. */
+  static load(json) {
+    const mgr2 = Object.create(_PanelManager.prototype);
+    mgr2.panelId = panel_load(json);
+    return mgr2;
+  }
+  /** Serialize the panel to JSON. */
+  save() {
+    return panel_save(this.panelId);
+  }
+  /** Add a widget (id field is ignored, assigned by WASM). Returns assigned id. */
+  addWidget(widget) {
+    const w = { id: 0, ...widget };
+    return panel_add_widget(this.panelId, JSON.stringify(w));
+  }
+  /** Remove a widget by id. Returns true if it existed. */
+  removeWidget(widgetId) {
+    return panel_remove_widget(this.panelId, widgetId);
+  }
+  /** Replace a widget's config in-place (id is preserved by WASM). */
+  updateWidget(widgetId, widget) {
+    const w = { id: widgetId, ...widget };
+    panel_update_widget(this.panelId, widgetId, JSON.stringify(w));
+  }
+  /** Get a live snapshot of the panel model. */
+  snapshot() {
+    return JSON.parse(panel_snapshot(this.panelId));
+  }
+  /** Set a single topic value in the panel's pubsub store. */
+  setTopic(topic, value) {
+    panel_set_topic(this.panelId, topic, value);
+  }
+  /** Get all topic values as a record. */
+  getValues() {
+    return JSON.parse(panel_get_values(this.panelId));
+  }
+  /** Merge external topic values into the panel's pubsub store. */
+  mergeValues(values) {
+    panel_merge_values(this.panelId, JSON.stringify(values));
+  }
+  /** Collect output topic values written by widgets. */
+  collectOutputs() {
+    return JSON.parse(panel_collect_outputs(this.panelId));
+  }
+};
+
+// src/dataflow/panel-view.ts
+function renderToggle(widget, _kind, onInteraction) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "flex items-center gap-2";
+  const label = document.createElement("span");
+  label.className = "text-[13px] text-text";
+  label.textContent = widget.label;
+  wrapper.appendChild(label);
+  const toggle = document.createElement("label");
+  toggle.className = "relative inline-flex items-center cursor-pointer";
+  const input = document.createElement("input");
+  input.type = "checkbox";
+  input.className = "sr-only peer";
+  input.addEventListener("change", () => {
+    onInteraction(widget.id, input.checked ? 1 : 0);
+    track.classList.toggle("bg-accent", input.checked);
+    track.classList.toggle("bg-border", !input.checked);
+    dot.classList.toggle("translate-x-5", input.checked);
+    dot.classList.toggle("translate-x-0", !input.checked);
+  });
+  toggle.appendChild(input);
+  const track = document.createElement("div");
+  track.className = "w-10 h-5 bg-border rounded-full transition-colors duration-200";
+  track.dataset.role = "track";
+  toggle.appendChild(track);
+  const dot = document.createElement("div");
+  dot.className = "absolute left-0.5 top-0.5 w-4 h-4 bg-text rounded-full transition-transform duration-200 translate-x-0";
+  dot.dataset.role = "dot";
+  toggle.appendChild(dot);
+  wrapper.appendChild(toggle);
+  return wrapper;
+}
+function renderSlider(widget, kind, onInteraction) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "flex flex-col gap-1";
+  const header = document.createElement("div");
+  header.className = "flex justify-between items-center";
+  const label = document.createElement("span");
+  label.className = "text-[13px] text-text";
+  label.textContent = widget.label;
+  header.appendChild(label);
+  const valueLabel = document.createElement("span");
+  valueLabel.className = "text-[13px] text-text-dim font-mono";
+  valueLabel.dataset.role = "value";
+  valueLabel.textContent = String(kind.min);
+  header.appendChild(valueLabel);
+  wrapper.appendChild(header);
+  const input = document.createElement("input");
+  input.type = "range";
+  input.min = String(kind.min);
+  input.max = String(kind.max);
+  input.step = String(kind.step);
+  input.value = String(kind.min);
+  input.className = "w-full accent-accent";
+  input.addEventListener("input", () => {
+    const v = parseFloat(input.value);
+    valueLabel.textContent = String(v);
+    onInteraction(widget.id, v);
+  });
+  wrapper.appendChild(input);
+  return wrapper;
+}
+function renderGauge(widget, kind) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "flex flex-col gap-1";
+  const header = document.createElement("div");
+  header.className = "flex justify-between items-center";
+  const label = document.createElement("span");
+  label.className = "text-[13px] text-text";
+  label.textContent = widget.label;
+  header.appendChild(label);
+  const valueLabel = document.createElement("span");
+  valueLabel.className = "text-[13px] text-text-dim font-mono";
+  valueLabel.dataset.role = "value";
+  valueLabel.textContent = String(kind.min);
+  header.appendChild(valueLabel);
+  wrapper.appendChild(header);
+  const barBg = document.createElement("div");
+  barBg.className = "w-full h-2 bg-bg rounded-full overflow-hidden";
+  const barFill = document.createElement("div");
+  barFill.className = "h-full bg-accent rounded-full transition-all duration-150";
+  barFill.dataset.role = "bar";
+  barFill.dataset.min = String(kind.min);
+  barFill.dataset.max = String(kind.max);
+  barFill.style.width = "0%";
+  barBg.appendChild(barFill);
+  wrapper.appendChild(barBg);
+  return wrapper;
+}
+function renderLabel(widget) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "flex flex-col gap-0.5";
+  const label = document.createElement("span");
+  label.className = "text-[11px] uppercase tracking-wider text-text-dim";
+  label.textContent = widget.label;
+  wrapper.appendChild(label);
+  const value = document.createElement("span");
+  value.className = "text-[15px] text-text font-mono";
+  value.dataset.role = "value";
+  value.textContent = "\u2014";
+  wrapper.appendChild(value);
+  return wrapper;
+}
+function renderButton(widget, _kind, onInteraction) {
+  const wrapper = document.createElement("div");
+  const btn = document.createElement("button");
+  btn.className = "bg-accent text-white px-4 py-1.5 rounded text-[13px] font-semibold cursor-pointer transition-colors duration-150 hover:bg-accent-dim active:opacity-80";
+  btn.textContent = widget.label;
+  btn.addEventListener("pointerdown", () => {
+    onInteraction(widget.id, 1);
+  });
+  btn.addEventListener("pointerup", () => {
+    onInteraction(widget.id, 0);
+  });
+  btn.addEventListener("pointerleave", () => {
+    onInteraction(widget.id, 0);
+  });
+  wrapper.appendChild(btn);
+  return wrapper;
+}
+function renderIndicator(widget) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "flex items-center gap-2";
+  const dot = document.createElement("div");
+  dot.className = "w-3 h-3 rounded-full bg-border transition-colors duration-150";
+  dot.dataset.role = "indicator";
+  wrapper.appendChild(dot);
+  const label = document.createElement("span");
+  label.className = "text-[13px] text-text";
+  label.textContent = widget.label;
+  wrapper.appendChild(label);
+  return wrapper;
+}
+function renderPanel(container, mgr2, onWidgetInteraction2) {
+  const model = mgr2.snapshot();
+  container.textContent = "";
+  const title = document.createElement("h2");
+  title.className = "text-[13px] uppercase tracking-wider text-text-dim mb-3";
+  title.textContent = model.name;
+  container.appendChild(title);
+  for (const widget of model.widgets) {
+    const card = document.createElement("div");
+    card.className = "bg-surface border border-border rounded-lg p-3 mb-2";
+    card.dataset.widgetId = String(widget.id);
+    card.style.minWidth = `${widget.size.width}px`;
+    card.style.minHeight = `${widget.size.height}px`;
+    let content;
+    switch (widget.kind.type) {
+      case "Toggle":
+        content = renderToggle(widget, widget.kind, onWidgetInteraction2);
+        break;
+      case "Slider":
+        content = renderSlider(widget, widget.kind, onWidgetInteraction2);
+        break;
+      case "Gauge":
+        content = renderGauge(widget, widget.kind);
+        break;
+      case "Label":
+        content = renderLabel(widget);
+        break;
+      case "Button":
+        content = renderButton(widget, widget.kind, onWidgetInteraction2);
+        break;
+      case "Indicator":
+        content = renderIndicator(widget);
+        break;
+    }
+    card.appendChild(content);
+    container.appendChild(card);
+  }
+}
+function updatePanelValues(container, values) {
+  for (const [widgetId, value] of values) {
+    const card = container.querySelector(
+      `[data-widget-id="${widgetId}"]`
+    );
+    if (!card) continue;
+    const valueEl = card.querySelector('[data-role="value"]');
+    if (valueEl) {
+      valueEl.textContent = typeof value === "number" ? String(Math.round(value * 1e3) / 1e3) : String(value);
+    }
+    const barEl = card.querySelector('[data-role="bar"]');
+    if (barEl && typeof value === "number") {
+      const min = parseFloat(barEl.dataset.min ?? "0");
+      const max = parseFloat(barEl.dataset.max ?? "100");
+      const pct = Math.max(0, Math.min(100, (value - min) / (max - min) * 100));
+      barEl.style.width = `${pct}%`;
+    }
+    const indicatorEl = card.querySelector('[data-role="indicator"]');
+    if (indicatorEl && typeof value === "number") {
+      const lit = value > 0.5;
+      indicatorEl.classList.toggle("bg-accent", lit);
+      indicatorEl.classList.toggle("bg-border", !lit);
+    }
+    const checkbox = card.querySelector('input[type="checkbox"]');
+    if (checkbox && typeof value === "number") {
+      const checked = value > 0.5;
+      if (checkbox.checked !== checked) {
+        checkbox.checked = checked;
+        const track = card.querySelector('[data-role="track"]');
+        const dot = card.querySelector('[data-role="dot"]');
+        if (track) {
+          track.classList.toggle("bg-accent", checked);
+          track.classList.toggle("bg-border", !checked);
+        }
+        if (dot) {
+          dot.classList.toggle("translate-x-5", checked);
+          dot.classList.toggle("translate-x-0", !checked);
+        }
+      }
+    }
+    const slider = card.querySelector('input[type="range"]');
+    if (slider && typeof value === "number") {
+      slider.value = String(value);
+    }
+  }
+}
+
+// src/dataflow/panel-editor.ts
+function nanOr(value, fallback) {
+  return isNaN(value) ? fallback : value;
+}
+var panelMgr = null;
+var selectedWidgetId = null;
+var hilClient2 = null;
+var syncIntervalId = null;
+var WIDGET_DEFAULTS = {
+  Toggle: {
+    kind: { type: "Toggle" },
+    defaultChannels: [{ topic: "topic/name", direction: "Output", port_kind: "Float" }]
+  },
+  Slider: {
+    kind: { type: "Slider", min: 0, max: 100, step: 1 },
+    defaultChannels: [{ topic: "topic/name", direction: "Output", port_kind: "Float" }]
+  },
+  Gauge: {
+    kind: { type: "Gauge", min: 0, max: 100 },
+    defaultChannels: [{ topic: "topic/name", direction: "Input", port_kind: "Float" }]
+  },
+  Label: {
+    kind: { type: "Label" },
+    defaultChannels: [{ topic: "topic/name", direction: "Input", port_kind: "Float" }]
+  },
+  Button: {
+    kind: { type: "Button" },
+    defaultChannels: [{ topic: "topic/name", direction: "Output", port_kind: "Float" }]
+  },
+  Indicator: {
+    kind: { type: "Indicator" },
+    defaultChannels: [{ topic: "topic/name", direction: "Input", port_kind: "Float" }]
+  }
+};
+var OUTPUT_WIDGETS = /* @__PURE__ */ new Set(["Toggle", "Slider", "Button"]);
+function getWorkspace() {
+  return document.getElementById("panel-workspace");
+}
+function rerender() {
+  if (!panelMgr) return;
+  const workspace = getWorkspace();
+  renderPanel(workspace, panelMgr, onWidgetInteraction);
+  const cards = workspace.querySelectorAll("[data-widget-id]");
+  for (const card of cards) {
+    card.style.cursor = "pointer";
+    card.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const id = parseInt(card.dataset.widgetId, 10);
+      selectWidget(id);
+    });
+  }
+  if (selectedWidgetId !== null) {
+    const sel = workspace.querySelector(
+      `[data-widget-id="${selectedWidgetId}"]`
+    );
+    if (sel) {
+      sel.style.borderColor = "var(--color-accent)";
+      sel.style.borderWidth = "2px";
+    }
+  }
+}
+function onWidgetInteraction(widgetId, value) {
+  if (!panelMgr) return;
+  const model = panelMgr.snapshot();
+  const widget = model.widgets.find((w) => w.id === widgetId);
+  if (!widget) return;
+  const numValue = typeof value === "string" ? parseFloat(value) || 0 : value;
+  for (const ch of widget.channels) {
+    if (ch.direction === "Output") {
+      panelMgr.setTopic(ch.topic, numValue);
+    }
+  }
+}
+function selectWidget(widgetId) {
+  selectedWidgetId = widgetId;
+  rerender();
+  showInspector(widgetId);
+}
+function clearInspector() {
+  selectedWidgetId = null;
+  const inspector = document.getElementById("panel-inspector");
+  inspector.textContent = "";
+  const hint = document.createElement("span");
+  hint.className = "text-text-dim text-[11px]";
+  hint.textContent = "Select a widget to configure";
+  inspector.appendChild(hint);
+}
+function showInspector(widgetId) {
+  if (!panelMgr) return;
+  const model = panelMgr.snapshot();
+  const widget = model.widgets.find((w) => w.id === widgetId);
+  if (!widget) {
+    clearInspector();
+    return;
+  }
+  const inspector = document.getElementById("panel-inspector");
+  inspector.textContent = "";
+  const labelRow = document.createElement("div");
+  labelRow.className = "mb-2";
+  const labelLabel = document.createElement("label");
+  labelLabel.className = "block text-text-dim text-[11px] mb-0.5";
+  labelLabel.textContent = "Label";
+  labelRow.appendChild(labelLabel);
+  const labelInput = document.createElement("input");
+  labelInput.type = "text";
+  labelInput.value = widget.label;
+  labelInput.className = "w-full bg-bg border border-border text-text px-2 py-1 rounded text-xs focus:outline-none focus:border-accent";
+  labelRow.appendChild(labelInput);
+  inspector.appendChild(labelRow);
+  const kindInputs = {};
+  if (widget.kind.type === "Slider") {
+    for (const key of ["min", "max", "step"]) {
+      const row = document.createElement("div");
+      row.className = "mb-2";
+      const lab = document.createElement("label");
+      lab.className = "block text-text-dim text-[11px] mb-0.5";
+      lab.textContent = key;
+      row.appendChild(lab);
+      const inp = document.createElement("input");
+      inp.type = "number";
+      inp.step = "any";
+      inp.value = String(widget.kind[key]);
+      inp.className = "w-full bg-bg border border-border text-text px-2 py-1 rounded text-xs focus:outline-none focus:border-accent";
+      row.appendChild(inp);
+      inspector.appendChild(row);
+      kindInputs[key] = inp;
+    }
+  } else if (widget.kind.type === "Gauge") {
+    for (const key of ["min", "max"]) {
+      const row = document.createElement("div");
+      row.className = "mb-2";
+      const lab = document.createElement("label");
+      lab.className = "block text-text-dim text-[11px] mb-0.5";
+      lab.textContent = key;
+      row.appendChild(lab);
+      const inp = document.createElement("input");
+      inp.type = "number";
+      inp.step = "any";
+      inp.value = String(widget.kind[key]);
+      inp.className = "w-full bg-bg border border-border text-text px-2 py-1 rounded text-xs focus:outline-none focus:border-accent";
+      row.appendChild(inp);
+      inspector.appendChild(row);
+      kindInputs[key] = inp;
+    }
+  }
+  const channelInputs = [];
+  if (widget.channels.length > 0) {
+    const chHeader = document.createElement("div");
+    chHeader.className = "text-text-dim text-[11px] mt-2 mb-1 font-semibold";
+    chHeader.textContent = "Channels";
+    inspector.appendChild(chHeader);
+    for (let i = 0; i < widget.channels.length; i++) {
+      const ch = widget.channels[i];
+      const row = document.createElement("div");
+      row.className = "mb-2";
+      const dirSpan = document.createElement("span");
+      dirSpan.className = "text-[10px] text-text-dim";
+      dirSpan.textContent = `${ch.direction} (${ch.port_kind})`;
+      row.appendChild(dirSpan);
+      const topicInput = document.createElement("input");
+      topicInput.type = "text";
+      topicInput.value = ch.topic;
+      topicInput.className = "w-full bg-bg border border-border text-text px-2 py-1 rounded text-xs mt-0.5 focus:outline-none focus:border-accent";
+      row.appendChild(topicInput);
+      inspector.appendChild(row);
+      channelInputs.push(topicInput);
+    }
+  }
+  const applyBtn = document.createElement("button");
+  applyBtn.className = "btn btn-primary btn-sm mt-2";
+  applyBtn.textContent = "Apply";
+  applyBtn.addEventListener("click", () => {
+    if (!panelMgr) return;
+    let updatedKind = widget.kind;
+    if (widget.kind.type === "Slider") {
+      updatedKind = {
+        type: "Slider",
+        min: nanOr(parseFloat(kindInputs["min"].value), 0),
+        max: nanOr(parseFloat(kindInputs["max"].value), 100),
+        step: nanOr(parseFloat(kindInputs["step"].value), 1)
+      };
+    } else if (widget.kind.type === "Gauge") {
+      updatedKind = {
+        type: "Gauge",
+        min: nanOr(parseFloat(kindInputs["min"].value), 0),
+        max: nanOr(parseFloat(kindInputs["max"].value), 100)
+      };
+    }
+    const updatedChannels = widget.channels.map((ch, i) => ({
+      ...ch,
+      topic: channelInputs[i]?.value ?? ch.topic
+    }));
+    panelMgr.updateWidget(widgetId, {
+      kind: updatedKind,
+      label: labelInput.value,
+      position: widget.position,
+      size: widget.size,
+      channels: updatedChannels
+    });
+    rerender();
+    showInspector(widgetId);
+  });
+  inspector.appendChild(applyBtn);
+  const deleteBtn = document.createElement("button");
+  deleteBtn.className = "btn btn-sm mt-2";
+  deleteBtn.style.backgroundColor = "var(--color-danger)";
+  deleteBtn.style.color = "white";
+  deleteBtn.textContent = "Delete Widget";
+  deleteBtn.addEventListener("click", () => {
+    if (!panelMgr) return;
+    panelMgr.removeWidget(widgetId);
+    clearInspector();
+    rerender();
+  });
+  inspector.appendChild(deleteBtn);
+}
+function startPubsubSync() {
+  if (syncIntervalId) return;
+  syncIntervalId = setInterval(async () => {
+    if (!panelMgr || !hilClient2?.connected) return;
+    try {
+      const pubsubValues = await hilClient2.getPubsub();
+      panelMgr.mergeValues(pubsubValues);
+      const allValues = panelMgr.getValues();
+      const model = panelMgr.snapshot();
+      const valueMap = /* @__PURE__ */ new Map();
+      for (const widget of model.widgets) {
+        for (const ch of widget.channels) {
+          if (ch.direction === "Input" && ch.topic in allValues) {
+            valueMap.set(widget.id, allValues[ch.topic]);
+          }
+        }
+      }
+      if (valueMap.size > 0) {
+        const workspace = getWorkspace();
+        updatePanelValues(workspace, valueMap);
+      }
+    } catch {
+    }
+  }, 200);
+}
+function stopPubsubSync() {
+  if (syncIntervalId) {
+    clearInterval(syncIntervalId);
+    syncIntervalId = null;
+  }
+}
+function buildPalette() {
+  const palette = document.getElementById("panel-widget-palette");
+  palette.textContent = "";
+  for (const [name, def] of Object.entries(WIDGET_DEFAULTS)) {
+    const btn = document.createElement("button");
+    btn.className = "block w-full text-left text-xs px-2 py-1.5 cursor-pointer bg-transparent border-none text-text transition-colors";
+    const isOutput = OUTPUT_WIDGETS.has(name);
+    btn.style.borderLeft = `3px solid ${isOutput ? "var(--color-accent)" : "var(--color-success)"}`;
+    btn.addEventListener("mouseenter", () => {
+      btn.style.background = "var(--color-border)";
+    });
+    btn.addEventListener("mouseleave", () => {
+      btn.style.background = "transparent";
+    });
+    btn.textContent = name;
+    btn.addEventListener("click", () => {
+      if (!panelMgr) return;
+      panelMgr.addWidget({
+        kind: def.kind,
+        label: name,
+        position: { x: 0, y: 0 },
+        size: { width: 160, height: 60 },
+        channels: def.defaultChannels.map((c) => ({ ...c }))
+      });
+      rerender();
+    });
+    palette.appendChild(btn);
+  }
+}
+function loadPanel(name) {
+  const json = localStorage.getItem("panel:" + name);
+  if (!json) return;
+  const nameInput = document.getElementById("panel-name");
+  if (panelMgr) panelMgr.destroy();
+  panelMgr = PanelManager.load(json);
+  nameInput.value = name;
+  clearInspector();
+  rerender();
+  refreshPanelList();
+}
+function refreshPanelList() {
+  const container = document.getElementById("panel-list");
+  if (!container) return;
+  container.textContent = "";
+  const nameInput = document.getElementById("panel-name");
+  const currentName = nameInput?.value.trim() ?? "";
+  const panelKeys = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key && key.startsWith("panel:")) {
+      panelKeys.push(key.slice("panel:".length));
+    }
+  }
+  panelKeys.sort();
+  if (panelKeys.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "text-[11px] text-text-dim px-2 py-2";
+    empty.textContent = "No saved panels";
+    container.appendChild(empty);
+    return;
+  }
+  for (const panelName of panelKeys) {
+    const item = document.createElement("div");
+    item.className = "flex items-center justify-between px-2 py-1.5 text-xs cursor-pointer transition-colors";
+    item.style.borderLeft = "2px solid transparent";
+    if (panelName === currentName) {
+      item.style.borderLeftColor = "var(--color-accent)";
+      item.style.background = "var(--color-surface)";
+    }
+    item.addEventListener("mouseenter", () => {
+      if (panelName !== currentName) {
+        item.style.background = "var(--color-border)";
+      }
+    });
+    item.addEventListener("mouseleave", () => {
+      if (panelName !== currentName) {
+        item.style.background = "transparent";
+      }
+    });
+    const nameSpan = document.createElement("span");
+    nameSpan.textContent = panelName;
+    nameSpan.className = "truncate flex-1";
+    nameSpan.addEventListener("click", () => loadPanel(panelName));
+    item.appendChild(nameSpan);
+    const delBtn = document.createElement("button");
+    delBtn.textContent = "\xD7";
+    delBtn.className = "text-text-dim hover:text-danger text-sm leading-none ml-2";
+    delBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      localStorage.removeItem("panel:" + panelName);
+      refreshPanelList();
+    });
+    item.appendChild(delBtn);
+    container.appendChild(item);
+  }
+}
+function initPanel() {
+  const nameInput = document.getElementById("panel-name");
+  const newBtn = document.getElementById("panel-new");
+  const saveBtn = document.getElementById("panel-save");
+  panelMgr = new PanelManager("My Panel");
+  buildPalette();
+  rerender();
+  refreshPanelList();
+  const workspace = getWorkspace();
+  workspace.addEventListener("click", (e) => {
+    if (e.target === workspace) {
+      clearInspector();
+      rerender();
+    }
+  });
+  newBtn.addEventListener("click", () => {
+    if (panelMgr) panelMgr.destroy();
+    panelMgr = new PanelManager("My Panel");
+    nameInput.value = "My Panel";
+    clearInspector();
+    rerender();
+    refreshPanelList();
+  });
+  saveBtn.addEventListener("click", () => {
+    if (!panelMgr) return;
+    const name = nameInput.value.trim() || "My Panel";
+    localStorage.setItem("panel:" + name, panelMgr.save());
+    refreshPanelList();
+    const origText = saveBtn.textContent;
+    saveBtn.textContent = "Saved!";
+    setTimeout(() => {
+      saveBtn.textContent = origText;
+    }, 1500);
+  });
+  const hilUrlInput = document.getElementById("panel-hil-url");
+  const hilConnectBtn = document.getElementById("panel-hil-connect");
+  const hilStatusEl = document.getElementById("panel-hil-status");
+  hilConnectBtn.addEventListener("click", () => {
+    if (hilClient2?.connected) {
+      hilClient2.disconnect();
+      stopPubsubSync();
+      return;
+    }
+    const url = hilUrlInput.value.trim();
+    if (!url) return;
+    hilClient2 = new HilClient();
+    hilClient2.onConnect = () => {
+      hilStatusEl.textContent = "Connected";
+      hilStatusEl.className = "text-[11px] text-success";
+      hilConnectBtn.textContent = "Disconnect";
+      startPubsubSync();
+    };
+    hilClient2.onDisconnect = () => {
+      hilStatusEl.textContent = "Disconnected";
+      hilStatusEl.className = "text-[11px] text-text-dim";
+      hilConnectBtn.textContent = "Connect";
+      stopPubsubSync();
+    };
+    hilClient2.onError = (msg) => {
+      hilStatusEl.textContent = "Error: " + msg;
+      hilStatusEl.className = "text-[11px] text-danger";
+    };
+    hilClient2.connect(url);
+    hilStatusEl.textContent = "Connecting...";
+    hilStatusEl.className = "text-[11px] text-warning";
+  });
+}
+function activatePanel() {
+  requestAnimationFrame(() => rerender());
+}
+
+// src/version.ts
+async function initVersion() {
+  try {
+    const resp = await fetch("./version.json");
+    if (!resp.ok) return;
+    const info = await resp.json();
+    const short = `${info.sha} (${info.date.slice(0, 10)})`;
+    console.info(`RustCAM ${info.ref} ${short}`);
+    const el = document.createElement("span");
+    el.className = "text-text-dim text-[11px] font-mono ml-2";
+    el.textContent = short;
+    el.title = `Branch: ${info.ref}
+SHA: ${info.sha}
+Built: ${info.date}`;
+    document.querySelector("header")?.appendChild(el);
+  } catch {
+  }
+}
+
 // src/main.ts
 setResizeSim(resizeSim);
 setLoadSim(loadSim);
@@ -5472,12 +6563,14 @@ function setMode(mode) {
   $("cam-sidebar-content").classList.toggle("hidden", mode !== "cam");
   $("sketch-sidebar-content").classList.toggle("hidden", mode !== "sketch");
   $("dataflow-sidebar-content").classList.toggle("hidden", mode !== "dataflow");
+  $("panel-sidebar-content").classList.toggle("hidden", mode !== "panel");
   document.getElementById("preview-canvas").classList.toggle("hidden", mode !== "cam");
   $("preview-header").classList.toggle("hidden", mode !== "cam");
   $("sketch-canvas-wrap").style.display = mode === "sketch" ? "flex" : "none";
   const app = document.querySelector(".app");
   app.classList.toggle("sketch-mode", mode === "sketch");
   app.classList.toggle("dataflow-mode", mode === "dataflow");
+  app.classList.toggle("panel-mode", mode === "panel");
   if (mode === "sketch") {
     requestAnimationFrame(() => requestAnimationFrame(() => {
       resizeSketchCanvas();
@@ -5485,6 +6578,8 @@ function setMode(mode) {
     }));
   } else if (mode === "dataflow") {
     activateDataflow();
+  } else if (mode === "panel") {
+    activatePanel();
   } else {
     tryPreview();
   }
@@ -5526,9 +6621,13 @@ $("sketch-to-cam").addEventListener("click", () => {
 });
 async function boot() {
   try {
-    await init();
+    await init({ module_or_path: "/pkg/rustcam_bg.wasm" });
+    await initSim({ module_or_path: "/pkg/rustsim_bg.wasm" });
     setWasmReady(true);
     initDataflow();
+    initPanel();
+    initVersion();
+    setMode("dataflow");
     $("status").textContent = "WASM loaded \u2014 drop a file to begin.";
     $("status").className = "text-xs mt-2 min-h-4 text-success";
   } catch (e) {
