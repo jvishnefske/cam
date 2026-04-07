@@ -1764,7 +1764,7 @@ var DEFAULT_CONFIGS = {
   uart_rx: { port: 0, baud: 115200 },
   pubsub_source: { topic: "default", port_kind: "Float" },
   pubsub_sink: { topic: "default", port_kind: "Float" },
-  state_machine: { states: ["idle"], initial: "idle", transitions: [] },
+  state_machine: { states: ["idle"], initial: "idle", transitions: [], input_topics: [], output_topics: [] },
   encoder: { channel: 0 },
   ssd1306_display: { i2c_bus: 0, address: 60 },
   tmc2209_stepper: { uart_port: 0, uart_addr: 0, steps_per_rev: 200, microsteps: 16 },
