@@ -1641,6 +1641,11 @@ function reconcileNodes(nodeLayer, elements, blocks, positions, selectedId) {
       typeLabel.textContent = block.block_type;
       nodeEl.appendChild(typeLabel);
       createPorts(nodeEl, block.inputs, block.outputs, block.output_values);
+      if (block.block_type === "state_machine") {
+        const editorDiv = document.createElement("div");
+        editorDiv.className = "sm-editor-container";
+        nodeEl.appendChild(editorDiv);
+      }
       const h = nodeHeight(block);
       nodeEl.style.height = `${h}px`;
       nodeLayer.appendChild(nodeEl);
@@ -5519,6 +5524,8 @@ function formatValue(val) {
       return `[${val.data.length} bytes]`;
     case "Series":
       return `[${val.data.length} samples]`;
+    default:
+      return String(val.data);
   }
 }
 function setupSidebarPalette() {
