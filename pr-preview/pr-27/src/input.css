@@ -92,7 +92,7 @@
   .df-edge-layer {
     @apply absolute inset-0;
     pointer-events: none;
-    z-index: 1;
+    z-index: 3;
     overflow: visible;
   }
   .df-node-layer {
@@ -284,6 +284,9 @@
     pointer-events: stroke;
     cursor: pointer;
     transition: stroke-width 0.1s;
+  }
+  .df-edge.dragging {
+    pointer-events: none;
   }
   .df-edge:hover {
     stroke-width: 4;

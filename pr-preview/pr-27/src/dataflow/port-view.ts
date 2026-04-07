@@ -5,6 +5,7 @@ import { edgePath, createDragWire } from './edge-view.js';
 import type { DataflowManager } from './graph.js';
 import type { GraphSnapshot } from './types.js';
 
+
 const NODE_W = 140;
 const PORT_R = 6;
 const PORT_SPACING = 20;
@@ -118,6 +119,14 @@ export function setupWireDrag(
     };
   }
 
+  // Telemetry helper — publishes debug trace via WebSocket to server log
+  function emitTrace(category: string, data: Record<string, unknown>): void {
+    mgr.telemetry?.trace(category, data);
+    console.log(`[${category}]`, data);
+  }
+
+  let moveTraceThrottle = 0;
+
   function onPointerDown(e: PointerEvent): void {
     const target = e.target as HTMLElement;
     if (!target.classList.contains('df-port')) return;
@@ -139,21 +148,89 @@ export function setupWireDrag(
 
     wireDrag = { fromBlock: blockId, fromPort: portIndex, fromX, fromY, isOutput, dragPath };
 
+    emitTrace('wire-start', {
+      blockId, portIndex, side, isOutput,
+      clientX: e.clientX, clientY: e.clientY,
+      pointerId: e.pointerId,
+    });
+
     e.preventDefault();
     e.stopPropagation();
+    // Release implicit pointer capture so pointerup fires on the element
+    // under the cursor (the target port), not the source port.
+    target.releasePointerCapture(e.pointerId);
   }
 
   function onPointerMove(e: PointerEvent): void {
     if (!wireDrag) return;
     const world = screenToWorld(e.clientX, e.clientY);
-    wireDrag.dragPath.setAttribute('d', edgePath(wireDrag.fromX, wireDrag.fromY, world.x, world.y));
+    // edgePath assumes output→input (left-to-right curve).
+    // When dragging from an input port, the mouse is the "output" end.
+    if (wireDrag.isOutput) {
+      wireDrag.dragPath.setAttribute('d', edgePath(wireDrag.fromX, wireDrag.fromY, world.x, world.y));
+    } else {
+      wireDrag.dragPath.setAttribute('d', edgePath(world.x, world.y, wireDrag.fromX, wireDrag.fromY));
+    }
+
+    // Throttled move trace — what's under the cursor while dragging
+    const now = Date.now();
+    if (now - moveTraceThrottle > 500) {
+      moveTraceThrottle = now;
+      const hoverEl = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null;
+      emitTrace('wire-move', {
+        clientX: e.clientX, clientY: e.clientY,
+        worldX: world.x.toFixed(1), worldY: world.y.toFixed(1),
+        hoverTag: hoverEl?.tagName,
+        hoverClass: hoverEl?.className?.split?.(' ')?.[0],
+        hoverIsPort: hoverEl?.classList?.contains('df-port') ?? false,
+        eTarget: (e.target as HTMLElement)?.className?.split?.(' ')?.[0],
+      });
+    }
   }
 
   function onPointerUp(e: PointerEvent): void {
     if (!wireDrag) return;
 
-    // Check if we dropped on a port
-    const target = e.target as HTMLElement;
+    // Prefer e.target (reliable after releasePointerCapture in onPointerDown).
+    // Fall back to elementFromPoint + closest walk for edge cases.
+    const eTarget = e.target as HTMLElement | null;
+    let target: HTMLElement | null = null;
+    if (eTarget?.classList.contains('df-port')) {
+      target = eTarget;
+    } else if (eTarget) {
+      target = eTarget.closest('.df-port') as HTMLElement | null;
+    }
+    if (!target) {
+      const efp = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null;
+      if (efp?.classList.contains('df-port')) {
+        target = efp;
+      } else if (efp) {
+        target = efp.closest('.df-port') as HTMLElement | null;
+      }
+    }
+    const trace: Record<string, unknown> = {
+      event: 'wire-drop',
+      fromBlock: wireDrag.fromBlock,
+      fromPort: wireDrag.fromPort,
+      fromIsOutput: wireDrag.isOutput,
+      clientX: e.clientX, clientY: e.clientY,
+      eTargetTag: eTarget?.tagName,
+      eTargetClass: eTarget?.className,
+      eTargetIsPort: eTarget?.classList?.contains('df-port') ?? false,
+      elementFromPointTag: target?.tagName,
+      elementFromPointClass: target?.className,
+      elementFromPointIsPort: target?.classList?.contains('df-port') ?? false,
+      targetDataSide: target?.dataset?.side,
+      targetDataIndex: target?.dataset?.index,
+    };
+
+    if (!target) {
+      trace.result = 'no-element';
+      emitTrace('wire-drop', trace);
+      wireDrag.dragPath.remove();
+      wireDrag = null;
+      return;
+    }
     if (target.classList.contains('df-port')) {
       const nodeEl = target.closest('.df-node') as HTMLElement | null;
       if (nodeEl) {
@@ -162,19 +239,39 @@ export function setupWireDrag(
         const toPortIndex = parseInt(target.dataset.index!);
         const toIsOutput = toSide === 'output';
 
+        trace.toBlock = toBlockId;
+        trace.toPort = toPortIndex;
+        trace.toIsOutput = toIsOutput;
+        trace.sidesMatch = toIsOutput === wireDrag.isOutput;
+
         if (toIsOutput !== wireDrag.isOutput) {
+          const outBlock = wireDrag.isOutput ? wireDrag.fromBlock : toBlockId;
+          const outPort = wireDrag.isOutput ? wireDrag.fromPort : toPortIndex;
+          const inBlock = wireDrag.isOutput ? toBlockId : wireDrag.fromBlock;
+          const inPort = wireDrag.isOutput ? toPortIndex : wireDrag.fromPort;
+          trace.connectCall = { outBlock, outPort, inBlock, inPort };
           try {
-            if (wireDrag.isOutput) {
-              mgr.connect(wireDrag.fromBlock, wireDrag.fromPort, toBlockId, toPortIndex);
-            } else {
-              mgr.connect(toBlockId, toPortIndex, wireDrag.fromBlock, wireDrag.fromPort);
-            }
+            mgr.connect(outBlock, outPort, inBlock, inPort);
+            trace.result = 'success';
+            emitTrace('wire-drop', trace);
             onConnect();
           } catch (err) {
-            console.warn('connect failed:', err);
+            trace.result = 'error';
+            trace.error = String(err);
+            emitTrace('wire-drop', trace);
+            // Flash target port red briefly, then restore original color
+            const origColor = target.style.backgroundColor;
+            target.style.backgroundColor = 'var(--color-danger)';
+            setTimeout(() => { target.style.backgroundColor = origColor; }, 500);
           }
+        } else {
+          trace.result = 'same-side-skip';
+          emitTrace('wire-drop', trace);
         }
       }
+    } else {
+      trace.result = 'not-a-port';
+      emitTrace('wire-drop', trace);
     }
 
     wireDrag.dragPath.remove();
