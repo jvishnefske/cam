@@ -291,45 +291,26 @@ export function dataflow_add_i2c_device(graph_id, bus, addr, name) {
 
 /**
  * Advance the graph by wall-clock elapsed seconds (realtime mode).
- * Returns snapshot JSON.
+ * Returns snapshot as a typed JS object.
  * @param {number} graph_id
  * @param {number} elapsed
- * @returns {string}
+ * @returns {any}
  */
 export function dataflow_advance(graph_id, elapsed) {
-    let deferred2_0;
-    let deferred2_1;
-    try {
-        const ret = wasm.dataflow_advance(graph_id, elapsed);
-        var ptr1 = ret[0];
-        var len1 = ret[1];
-        if (ret[3]) {
-            ptr1 = 0; len1 = 0;
-            throw takeFromExternrefTable0(ret[2]);
-        }
-        deferred2_0 = ptr1;
-        deferred2_1 = len1;
-        return getStringFromWasm0(ptr1, len1);
-    } finally {
-        wasm.__wbindgen_free(deferred2_0, deferred2_1, 1);
+    const ret = wasm.dataflow_advance(graph_id, elapsed);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
     }
+    return takeFromExternrefTable0(ret[0]);
 }
 
 /**
- * List available block types as JSON.
- * @returns {string}
+ * List available block types as a typed JS array.
+ * @returns {any}
  */
 export function dataflow_block_types() {
-    let deferred1_0;
-    let deferred1_1;
-    try {
-        const ret = wasm.dataflow_block_types();
-        deferred1_0 = ret[0];
-        deferred1_1 = ret[1];
-        return getStringFromWasm0(ret[0], ret[1]);
-    } finally {
-        wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
-    }
+    const ret = wasm.dataflow_block_types();
+    return ret;
 }
 
 /**
@@ -508,29 +489,18 @@ export function dataflow_remove_i2c_device(graph_id, bus, addr) {
 
 /**
  * Run a fixed number of ticks (non-realtime batch mode).
- * Returns snapshot JSON.
+ * Returns snapshot as a typed JS object.
  * @param {number} graph_id
  * @param {number} steps
  * @param {number} dt
- * @returns {string}
+ * @returns {any}
  */
 export function dataflow_run(graph_id, steps, dt) {
-    let deferred2_0;
-    let deferred2_1;
-    try {
-        const ret = wasm.dataflow_run(graph_id, steps, dt);
-        var ptr1 = ret[0];
-        var len1 = ret[1];
-        if (ret[3]) {
-            ptr1 = 0; len1 = 0;
-            throw takeFromExternrefTable0(ret[2]);
-        }
-        deferred2_0 = ptr1;
-        deferred2_1 = len1;
-        return getStringFromWasm0(ptr1, len1);
-    } finally {
-        wasm.__wbindgen_free(deferred2_0, deferred2_1, 1);
+    const ret = wasm.dataflow_run(graph_id, steps, dt);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
     }
+    return takeFromExternrefTable0(ret[0]);
 }
 
 /**
@@ -587,25 +557,14 @@ export function dataflow_set_speed(graph_id, speed) {
 /**
  * Get a snapshot of the graph without ticking.
  * @param {number} graph_id
- * @returns {string}
+ * @returns {any}
  */
 export function dataflow_snapshot(graph_id) {
-    let deferred2_0;
-    let deferred2_1;
-    try {
-        const ret = wasm.dataflow_snapshot(graph_id);
-        var ptr1 = ret[0];
-        var len1 = ret[1];
-        if (ret[3]) {
-            ptr1 = 0; len1 = 0;
-            throw takeFromExternrefTable0(ret[2]);
-        }
-        deferred2_0 = ptr1;
-        deferred2_1 = len1;
-        return getStringFromWasm0(ptr1, len1);
-    } finally {
-        wasm.__wbindgen_free(deferred2_0, deferred2_1, 1);
+    const ret = wasm.dataflow_snapshot(graph_id);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
     }
+    return takeFromExternrefTable0(ret[0]);
 }
 
 /**
@@ -886,12 +845,68 @@ export function panel_update_widget(panel_id, widget_id, config_json) {
 function __wbg_get_imports() {
     const import0 = {
         __proto__: null,
+        __wbg_Error_2e59b1b37a9a34c3: function(arg0, arg1) {
+            const ret = Error(getStringFromWasm0(arg0, arg1));
+            return ret;
+        },
+        __wbg_Number_e6ffdb596c888833: function(arg0) {
+            const ret = Number(arg0);
+            return ret;
+        },
+        __wbg_String_8564e559799eccda: function(arg0, arg1) {
+            const ret = String(arg1);
+            const ptr1 = passStringToWasm0(ret, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            const len1 = WASM_VECTOR_LEN;
+            getDataViewMemory0().setInt32(arg0 + 4 * 1, len1, true);
+            getDataViewMemory0().setInt32(arg0 + 4 * 0, ptr1, true);
+        },
+        __wbg___wbindgen_is_string_b29b5c5a8065ba1a: function(arg0) {
+            const ret = typeof(arg0) === 'string';
+            return ret;
+        },
         __wbg___wbindgen_throw_81fc77679af83bc6: function(arg0, arg1) {
             throw new Error(getStringFromWasm0(arg0, arg1));
         },
-        __wbindgen_cast_0000000000000001: function(arg0, arg1) {
+        __wbg_new_4f9fafbb3909af72: function() {
+            const ret = new Object();
+            return ret;
+        },
+        __wbg_new_99cabae501c0a8a0: function() {
+            const ret = new Map();
+            return ret;
+        },
+        __wbg_new_f3c9df4f38f3f798: function() {
+            const ret = new Array();
+            return ret;
+        },
+        __wbg_set_08463b1df38a7e29: function(arg0, arg1, arg2) {
+            const ret = arg0.set(arg1, arg2);
+            return ret;
+        },
+        __wbg_set_6be42768c690e380: function(arg0, arg1, arg2) {
+            arg0[arg1] = arg2;
+        },
+        __wbg_set_6c60b2e8ad0e9383: function(arg0, arg1, arg2) {
+            arg0[arg1 >>> 0] = arg2;
+        },
+        __wbindgen_cast_0000000000000001: function(arg0) {
+            // Cast intrinsic for `F64 -> Externref`.
+            const ret = arg0;
+            return ret;
+        },
+        __wbindgen_cast_0000000000000002: function(arg0) {
+            // Cast intrinsic for `I64 -> Externref`.
+            const ret = arg0;
+            return ret;
+        },
+        __wbindgen_cast_0000000000000003: function(arg0, arg1) {
             // Cast intrinsic for `Ref(String) -> Externref`.
             const ret = getStringFromWasm0(arg0, arg1);
+            return ret;
+        },
+        __wbindgen_cast_0000000000000004: function(arg0) {
+            // Cast intrinsic for `U64 -> Externref`.
+            const ret = BigInt.asUintN(64, arg0);
             return ret;
         },
         __wbindgen_init_externref_table: function() {
@@ -922,6 +937,14 @@ function getArrayF64FromWasm0(ptr, len) {
 function getArrayU8FromWasm0(ptr, len) {
     ptr = ptr >>> 0;
     return getUint8ArrayMemory0().subarray(ptr / 1, ptr / 1 + len);
+}
+
+let cachedDataViewMemory0 = null;
+function getDataViewMemory0() {
+    if (cachedDataViewMemory0 === null || cachedDataViewMemory0.buffer.detached === true || (cachedDataViewMemory0.buffer.detached === undefined && cachedDataViewMemory0.buffer !== wasm.memory.buffer)) {
+        cachedDataViewMemory0 = new DataView(wasm.memory.buffer);
+    }
+    return cachedDataViewMemory0;
 }
 
 let cachedFloat64ArrayMemory0 = null;
@@ -1028,6 +1051,7 @@ let wasmModule, wasm;
 function __wbg_finalize_init(instance, module) {
     wasm = instance.exports;
     wasmModule = module;
+    cachedDataViewMemory0 = null;
     cachedFloat64ArrayMemory0 = null;
     cachedUint8ArrayMemory0 = null;
     wasm.__wbindgen_start();

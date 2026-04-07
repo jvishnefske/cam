@@ -1,5 +1,233 @@
 /* tslint:disable */
 /* eslint-disable */
+/**
+ * A directed connection from one output port to one input port.
+ */
+export interface Channel {
+    id: ChannelId;
+    from_block: BlockId;
+    from_port: number;
+    to_block: BlockId;
+    to_port: number;
+}
+
+/**
+ * A named field in a message schema.
+ */
+export interface MessageField {
+    name: string;
+    field_type: FieldType;
+}
+
+/**
+ * A value flowing through a channel.
+ */
+export type Value = { type: "Float"; data: number } | { type: "Bytes"; data: number[] } | { type: "Text"; data: string } | { type: "Series"; data: number[] } | { type: "Message"; data: MessageData };
+
+/**
+ * Metadata for a single port.
+ */
+export interface PortDef {
+    name: string;
+    kind: PortKind;
+}
+
+/**
+ * Opaque block identifier.
+ */
+export type BlockId = number;
+
+/**
+ * Opaque channel identifier.
+ */
+export type ChannelId = number;
+
+/**
+ * Primitive field types for message schemas.
+ */
+export type FieldType = "F32" | "F64" | "U8" | "U16" | "U32" | "I32" | "Bool";
+
+/**
+ * Runtime message data: flat f64 fields (bools as 0.0/1.0, ints cast to f64).
+ */
+export interface MessageData {
+    schema_name: string;
+    fields: [string, number][];
+}
+
+/**
+ * Schema definition for a structured message type.
+ */
+export interface MessageSchema {
+    name: string;
+    fields: MessageField[];
+}
+
+/**
+ * Snapshot of one block for serialization to the frontend.
+ */
+export interface BlockSnapshot {
+    id: number;
+    block_type: string;
+    name: string;
+    inputs: PortDef[];
+    outputs: PortDef[];
+    config: Value;
+    /**
+     * Last output values (one per output port).
+     */
+    output_values: (Value | undefined)[];
+    /**
+     * Optional target MCU assignment for distributed codegen.
+     * When None, the block runs on all targets.
+     */
+    target?: TargetFamily;
+    /**
+     * Custom codegen output from blocks implementing the `Codegen` trait.
+     * When present, emit.rs uses this instead of built-in code generation.
+     */
+    custom_codegen?: string;
+}
+
+/**
+ * Snapshot of the entire graph.
+ */
+export interface GraphSnapshot {
+    blocks: BlockSnapshot[];
+    channels: Channel[];
+    tick_count: number;
+    time: number;
+}
+
+/**
+ * Target MCU family.
+ */
+export type TargetFamily = "Host" | "Rp2040" | "Stm32f4" | "Esp32c3" | "Stm32g0b1";
+
+/**
+ * The kinds of data that can flow through a port.
+ */
+export type PortKind = "Float" | "Bytes" | "Text" | "Series" | "Any" | { Message: MessageSchema };
+
+export interface AdcConfig {
+    channel: number;
+    resolution_bits: number;
+}
+
+export interface BlockTypeInfo {
+    block_type: string;
+    name: string;
+    category: string;
+}
+
+export interface ConstantConfig {
+    value: number;
+}
+
+export interface EncoderConfig {
+    channel: number;
+}
+
+export interface FieldCondition {
+    field: string;
+    op: CompareOp;
+    value: number;
+}
+
+export interface FunctionConfig {
+    op: FunctionOp;
+    param1?: number;
+    param2?: number;
+}
+
+export interface GpioInConfig {
+    pin: number;
+}
+
+export interface GpioOutConfig {
+    pin: number;
+}
+
+export interface PlotConfig {
+    /**
+     * Maximum number of samples to keep.
+     */
+    max_samples?: number;
+}
+
+export interface PubSubConfig {
+    topic?: string;
+    port_kind?: "Float" | "Bytes" | "Text" | "Series" | "Any";
+}
+
+export interface PwmConfig {
+    channel: number;
+    frequency_hz: number;
+}
+
+export interface Ssd1306DisplayConfig {
+    i2c_bus?: number;
+    address?: number;
+}
+
+export interface StateMachineConfig {
+    states?: string[];
+    initial?: string;
+    transitions?: TransitionConfig[];
+    input_topics?: TopicBinding[];
+    output_topics?: TopicBinding[];
+}
+
+export interface Tmc2209StallGuardConfig {
+    uart_port?: number;
+    uart_addr?: number;
+    threshold?: number;
+}
+
+export interface Tmc2209StepperConfig {
+    uart_port?: number;
+    uart_addr?: number;
+    steps_per_rev?: number;
+    microsteps?: number;
+}
+
+export interface TopicBinding {
+    topic: string;
+    schema: { name: string; fields: Array<{ name: string; field_type: string }> };
+}
+
+export interface TransitionAction {
+    topic: string;
+    message: [string, number][];
+}
+
+export interface TransitionConfig {
+    from: string;
+    to: string;
+    guard: TransitionGuard;
+    actions?: TransitionAction[];
+}
+
+export interface UartRxConfig {
+    port: number;
+    baud: number;
+}
+
+export interface UartTxConfig {
+    port: number;
+    baud: number;
+}
+
+export interface UdpConfig {
+    address: string;
+}
+
+export type CompareOp = "Eq" | "Ne" | "Gt" | "Lt" | "Ge" | "Le";
+
+export type FunctionOp = "Gain" | "Add" | "Multiply" | "Clamp";
+
+export type TransitionGuard = { type: "Topic"; topic: string; condition?: FieldCondition | undefined } | { type: "Unconditional" } | { type: "GuardPort"; port: number };
+
 
 export class DagHandle {
     free(): void;
@@ -54,14 +282,14 @@ export function dataflow_add_i2c_device(graph_id: number, bus: number, addr: num
 
 /**
  * Advance the graph by wall-clock elapsed seconds (realtime mode).
- * Returns snapshot JSON.
+ * Returns snapshot as a typed JS object.
  */
-export function dataflow_advance(graph_id: number, elapsed: number): string;
+export function dataflow_advance(graph_id: number, elapsed: number): any;
 
 /**
- * List available block types as JSON.
+ * List available block types as a typed JS array.
  */
-export function dataflow_block_types(): string;
+export function dataflow_block_types(): any;
 
 /**
  * Generate a standalone Rust crate from a dataflow graph.
@@ -124,9 +352,9 @@ export function dataflow_remove_i2c_device(graph_id: number, bus: number, addr: 
 
 /**
  * Run a fixed number of ticks (non-realtime batch mode).
- * Returns snapshot JSON.
+ * Returns snapshot as a typed JS object.
  */
-export function dataflow_run(graph_id: number, steps: number, dt: number): string;
+export function dataflow_run(graph_id: number, steps: number, dt: number): any;
 
 /**
  * List all configured serial ports as JSON.
@@ -152,7 +380,7 @@ export function dataflow_set_speed(graph_id: number, speed: number): void;
 /**
  * Get a snapshot of the graph without ticking.
  */
-export function dataflow_snapshot(graph_id: number): string;
+export function dataflow_snapshot(graph_id: number): any;
 
 /**
  * Drain data from a simulated TCP send buffer (as JSON array).
@@ -262,8 +490,8 @@ export interface InitOutput {
     readonly daghandle_to_json: (a: number) => [number, number, number, number];
     readonly dataflow_add_block: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
     readonly dataflow_add_i2c_device: (a: number, b: number, c: number, d: number, e: number) => [number, number];
-    readonly dataflow_advance: (a: number, b: number) => [number, number, number, number];
-    readonly dataflow_block_types: () => [number, number];
+    readonly dataflow_advance: (a: number, b: number) => [number, number, number];
+    readonly dataflow_block_types: () => any;
     readonly dataflow_codegen: (a: number, b: number) => [number, number, number, number];
     readonly dataflow_codegen_multi: (a: number, b: number, c: number, d: number) => [number, number, number, number];
     readonly dataflow_configure_serial: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number];
@@ -275,12 +503,12 @@ export interface InitOutput {
     readonly dataflow_new: (a: number) => number;
     readonly dataflow_remove_block: (a: number, b: number) => [number, number];
     readonly dataflow_remove_i2c_device: (a: number, b: number, c: number) => [number, number];
-    readonly dataflow_run: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly dataflow_run: (a: number, b: number, c: number) => [number, number, number];
     readonly dataflow_serial_ports: (a: number) => [number, number, number];
     readonly dataflow_set_sim_adc: (a: number, b: number, c: number) => [number, number];
     readonly dataflow_set_simulation_mode: (a: number, b: number) => [number, number];
     readonly dataflow_set_speed: (a: number, b: number) => [number, number];
-    readonly dataflow_snapshot: (a: number) => [number, number, number, number];
+    readonly dataflow_snapshot: (a: number) => [number, number, number];
     readonly dataflow_tcp_drain: (a: number, b: number) => [number, number, number];
     readonly dataflow_tcp_inject: (a: number, b: number, c: number, d: number) => [number, number];
     readonly dataflow_update_block: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number];
@@ -297,11 +525,11 @@ export interface InitOutput {
     readonly panel_set_topic: (a: number, b: number, c: number, d: number) => [number, number];
     readonly panel_update_widget: (a: number, b: number, c: number, d: number) => [number, number];
     readonly panel_snapshot: (a: number) => [number, number, number, number];
+    readonly __wbindgen_malloc: (a: number, b: number) => number;
+    readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
     readonly __wbindgen_externrefs: WebAssembly.Table;
     readonly __externref_table_dealloc: (a: number) => void;
     readonly __wbindgen_free: (a: number, b: number, c: number) => void;
-    readonly __wbindgen_malloc: (a: number, b: number) => number;
-    readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
     readonly __wbindgen_start: () => void;
 }
 
