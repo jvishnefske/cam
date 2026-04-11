@@ -1,0 +1,32 @@
+/* tslint:disable */
+/* eslint-disable */
+export const memory: WebAssembly.Memory;
+export const available_profiles: () => [number, number];
+export const default_config: (a: number, b: number) => [number, number];
+export const preview_stl: (a: number, b: number, c: number, d: number) => [number, number, number, number];
+export const preview_svg: (a: number, b: number) => [number, number, number, number];
+export const process_stl: (a: number, b: number, c: number, d: number) => [number, number, number, number];
+export const process_stl_progress: (a: number, b: number, c: number, d: number, e: any) => [number, number, number, number];
+export const process_svg: (a: number, b: number, c: number, d: number) => [number, number, number, number];
+export const process_svg_progress: (a: number, b: number, c: number, d: number, e: any) => [number, number, number, number];
+export const sim_moves_stl: (a: number, b: number, c: number, d: number) => [number, number, number, number];
+export const sim_moves_svg: (a: number, b: number, c: number, d: number) => [number, number, number, number];
+export const sketch_add_constraint: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number, number];
+export const sketch_add_fixed_point: (a: number, b: number) => [number, number];
+export const sketch_add_point: (a: number, b: number) => [number, number];
+export const sketch_move_point: (a: number, b: number, c: number) => void;
+export const sketch_pump: () => [number, number, number, number];
+export const sketch_remove_constraint: (a: number) => void;
+export const sketch_remove_point: (a: number) => void;
+export const sketch_reset: () => void;
+export const sketch_set_fixed: (a: number, b: number) => void;
+export const sketch_snapshot: () => [number, number, number, number];
+export const sketch_solve: () => [number, number, number, number];
+export const __wbindgen_exn_store: (a: number) => void;
+export const __externref_table_alloc: () => number;
+export const __wbindgen_externrefs: WebAssembly.Table;
+export const __wbindgen_free: (a: number, b: number, c: number) => void;
+export const __wbindgen_malloc: (a: number, b: number) => number;
+export const __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
+export const __externref_table_dealloc: (a: number) => void;
+export const __wbindgen_start: () => void;

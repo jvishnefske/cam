@@ -1,0 +1,17 @@
+{
+  "name": "rustsim",
+  "type": "module",
+  "description": "Model-based dataflow development — visual block editor with multi-target embedded codegen",
+  "version": "0.1.0",
+  "license": "MIT",
+  "files": [
+    "rustsim_bg.wasm",
+    "rustsim.js",
+    "rustsim.d.ts"
+  ],
+  "main": "rustsim.js",
+  "types": "rustsim.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}
