@@ -1,7 +1,6 @@
 /* @ts-self-types="./rustcam.d.ts" */
 
 /**
- * Return JSON list of available machine profiles.
  * @returns {string}
  */
 export function available_profiles() {
@@ -18,7 +17,6 @@ export function available_profiles() {
 }
 
 /**
- * Return a default config JSON for the given machine type.
  * @param {string} machine_type
  * @returns {string}
  */
@@ -38,8 +36,6 @@ export function default_config(machine_type) {
 }
 
 /**
- * Return toolpath data as JSON (for the 2-D preview canvas).
- * Returns toolpath moves with Z coordinates for 3D visualization.
  * @param {Uint8Array} data
  * @param {string} config_json
  * @returns {string}
@@ -68,7 +64,6 @@ export function preview_stl(data, config_json) {
 }
 
 /**
- * Return toolpath data from SVG as JSON (for the 2-D preview canvas).
  * @param {string} svg_text
  * @returns {string}
  */
@@ -94,7 +89,6 @@ export function preview_svg(svg_text) {
 }
 
 /**
- * Process an STL file (binary bytes) and return G-code.
  * @param {Uint8Array} data
  * @param {string} config_json
  * @returns {string}
@@ -123,8 +117,6 @@ export function process_stl(data, config_json) {
 }
 
 /**
- * Process an STL file with progress reporting.
- * The callback receives (completed_layers, total_layers) after each layer.
  * @param {Uint8Array} data
  * @param {string} config_json
  * @param {Function} on_progress
@@ -154,7 +146,6 @@ export function process_stl_progress(data, config_json, on_progress) {
 }
 
 /**
- * Process an SVG string and return G-code.
  * @param {string} svg_text
  * @param {string} config_json
  * @returns {string}
@@ -183,8 +174,6 @@ export function process_svg(svg_text, config_json) {
 }
 
 /**
- * Process an SVG string with progress reporting.
- * The callback receives (completed_layers, total_layers) after each layer.
  * @param {string} svg_text
  * @param {string} config_json
  * @param {Function} on_progress
@@ -214,8 +203,6 @@ export function process_svg_progress(svg_text, config_json, on_progress) {
 }
 
 /**
- * Return flat move list as JSON for the tool simulation.
- * Each move: `{ x, y, z, rapid }`.
  * @param {Uint8Array} data
  * @param {string} config_json
  * @returns {string}
@@ -272,15 +259,6 @@ export function sim_moves_svg(svg_text, config_json) {
 }
 
 /**
- * Add a constraint. `kind` is one of: "coincident", "distance",
- * "horizontal", "vertical", "fixed", "angle", "radius",
- * "perpendicular", "parallel", "midpoint", "equal_length", "symmetric".
- *
- * `ids` is a JSON array of point ids, `value` is the numeric parameter
- * (distance, angle, radius, x, y — depends on constraint type).
- * For "fixed", pass `value` as x and `value2` as y.
- *
- * Returns JSON `{"id": <u32>}`.
  * @param {string} kind
  * @param {string} ids_json
  * @param {number} value
@@ -311,7 +289,6 @@ export function sketch_add_constraint(kind, ids_json, value, value2) {
 }
 
 /**
- * Add a fixed point. Returns JSON `{"id": <u32>}`.
  * @param {number} x
  * @param {number} y
  * @returns {string}
@@ -330,7 +307,6 @@ export function sketch_add_fixed_point(x, y) {
 }
 
 /**
- * Add a free point. Returns JSON `{"id": <u32>}`.
  * @param {number} x
  * @param {number} y
  * @returns {string}
@@ -349,7 +325,6 @@ export function sketch_add_point(x, y) {
 }
 
 /**
- * Move a point to new coordinates.
  * @param {number} id
  * @param {number} x
  * @param {number} y
@@ -359,7 +334,6 @@ export function sketch_move_point(id, x, y) {
 }
 
 /**
- * Process queued messages and return snapshot JSON.
  * @returns {string}
  */
 export function sketch_pump() {
@@ -382,7 +356,6 @@ export function sketch_pump() {
 }
 
 /**
- * Remove a constraint by id.
  * @param {number} id
  */
 export function sketch_remove_constraint(id) {
@@ -390,22 +363,17 @@ export function sketch_remove_constraint(id) {
 }
 
 /**
- * Remove a point and all its constraints.
  * @param {number} id
  */
 export function sketch_remove_point(id) {
     wasm.sketch_remove_point(id);
 }
 
-/**
- * Reset the sketch actor to a blank state.
- */
 export function sketch_reset() {
     wasm.sketch_reset();
 }
 
 /**
- * Set a point's fixed flag.
  * @param {number} id
  * @param {boolean} fixed
  */
@@ -414,7 +382,6 @@ export function sketch_set_fixed(id, fixed) {
 }
 
 /**
- * Get current snapshot without solving (read-only query).
  * @returns {string}
  */
 export function sketch_snapshot() {
@@ -437,9 +404,6 @@ export function sketch_snapshot() {
 }
 
 /**
- * Run the constraint solver and return a full snapshot as JSON.
- * The snapshot includes points, constraints, DOF, solve status,
- * and per-point coloring status.
  * @returns {string}
  */
 export function sketch_solve() {
@@ -460,14 +424,13 @@ export function sketch_solve() {
         wasm.__wbindgen_free(deferred2_0, deferred2_1, 1);
     }
 }
-
 function __wbg_get_imports() {
     const import0 = {
         __proto__: null,
-        __wbg___wbindgen_throw_81fc77679af83bc6: function(arg0, arg1) {
+        __wbg___wbindgen_throw_6b64449b9b9ed33c: function(arg0, arg1) {
             throw new Error(getStringFromWasm0(arg0, arg1));
         },
-        __wbg_call_368fa9c372d473ba: function() { return handleError(function (arg0, arg1, arg2, arg3) {
+        __wbg_call_bb28efe6b2f55b86: function() { return handleError(function (arg0, arg1, arg2, arg3) {
             const ret = arg0.call(arg1, arg2, arg3);
             return ret;
         }, arguments); },

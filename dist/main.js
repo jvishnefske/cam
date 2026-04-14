@@ -1198,7 +1198,12 @@ import {
   dataflow_run,
   dataflow_set_speed,
   dataflow_snapshot,
-  dataflow_block_types
+  dataflow_block_types,
+  dataflow_function_defs,
+  mcu_families,
+  mcu_definition,
+  mcu_pins,
+  mcu_peripherals
 } from "../pkg/rustsim.js";
 var DataflowManager = class {
   graphId;
@@ -1301,6 +1306,27 @@ var DataflowManager = class {
   }
   static blockTypes() {
     return JSON.parse(dataflow_block_types());
+  }
+  /** Get the full function definition registry from WASM.
+   *  This is the single source of truth for all block schemas. */
+  static functionDefs() {
+    return dataflow_function_defs();
+  }
+  /** List supported MCU target families. */
+  static mcuFamilies() {
+    return mcu_families();
+  }
+  /** Get the full MCU definition for a target family (pins, peripherals, etc). */
+  static mcuDefinition(family) {
+    return mcu_definition(family);
+  }
+  /** Get just the pin definitions for a target family. */
+  static mcuPins(family) {
+    return mcu_pins(family);
+  }
+  /** Get peripheral instances for a target family. */
+  static mcuPeripherals(family) {
+    return mcu_peripherals(family);
   }
 };
 
@@ -1749,11 +1775,31 @@ function setupNodeDelete(nodeLayer, mgr2, _getSelected, onDelete) {
 }
 
 // src/dataflow/palette.ts
-var DEFAULT_CONFIGS = {
-  constant: { value: 1 },
-  gain: { op: "Gain", param1: 1, param2: 0 },
-  clamp: { op: "Clamp", param1: 0, param2: 100 },
-  plot: { max_samples: 500 },
+function buildDefaultConfigs(defs) {
+  const configs = {};
+  for (const def of defs) {
+    const cfg = {};
+    for (const p of def.params) {
+      switch (p.kind) {
+        case "Float":
+          cfg[p.name] = parseFloat(p.default) || 0;
+          break;
+        case "Int":
+          cfg[p.name] = parseInt(p.default, 10) || 0;
+          break;
+        case "Bool":
+          cfg[p.name] = p.default === "true";
+          break;
+        case "String":
+          cfg[p.name] = p.default;
+          break;
+      }
+    }
+    configs[def.id] = cfg;
+  }
+  return configs;
+}
+var LEGACY_CONFIGS = {
   udp_source: { address: "127.0.0.1:9000" },
   udp_sink: { address: "127.0.0.1:9001" },
   adc_source: { channel: 0, resolution_bits: 12 },
@@ -1762,14 +1808,17 @@ var DEFAULT_CONFIGS = {
   gpio_in: { pin: 2 },
   uart_tx: { port: 0, baud: 115200 },
   uart_rx: { port: 0, baud: 115200 },
-  pubsub_source: { topic: "default", port_kind: "Float" },
-  pubsub_sink: { topic: "default", port_kind: "Float" },
+  register: { initial_value: 0 },
   state_machine: { states: ["idle"], initial: "idle", transitions: [], input_topics: [], output_topics: [] },
   encoder: { channel: 0 },
   ssd1306_display: { i2c_bus: 0, address: 60 },
   tmc2209_stepper: { uart_port: 0, uart_addr: 0, steps_per_rev: 200, microsteps: 16 },
   tmc2209_stallguard: { uart_port: 0, uart_addr: 0, threshold: 50 }
 };
+var DEFAULT_CONFIGS = { ...LEGACY_CONFIGS };
+function initDefaultConfigs(defs) {
+  DEFAULT_CONFIGS = { ...LEGACY_CONFIGS, ...buildDefaultConfigs(defs) };
+}
 function showPalette(workspace, blockTypes, mgr2, screenX, screenY, worldX, worldY, onBlockAdded) {
   workspace.querySelector(".df-palette")?.remove();
   const palette = document.createElement("div");
@@ -5177,6 +5226,11 @@ var activeProjectName = "Untitled";
 var triggerAutoSave = null;
 var telemetry = null;
 function initDataflow() {
+  try {
+    const defs = DataflowManager.functionDefs();
+    initDefaultConfigs(defs);
+  } catch (_) {
+  }
   mgr = new DataflowManager(0.01);
   const container = $("dataflow-workspace");
   editor = new DataflowEditor(container, mgr);

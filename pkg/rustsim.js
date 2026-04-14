@@ -1,22 +1,22 @@
 /* @ts-self-types="./rustsim.d.ts" */
 
-export class DagHandle {
+export class WasmDagHandle {
     static __wrap(ptr) {
         ptr = ptr >>> 0;
-        const obj = Object.create(DagHandle.prototype);
+        const obj = Object.create(WasmDagHandle.prototype);
         obj.__wbg_ptr = ptr;
-        DagHandleFinalization.register(obj, obj.__wbg_ptr, obj);
+        WasmDagHandleFinalization.register(obj, obj.__wbg_ptr, obj);
         return obj;
     }
     __destroy_into_raw() {
         const ptr = this.__wbg_ptr;
         this.__wbg_ptr = 0;
-        DagHandleFinalization.unregister(this);
+        WasmDagHandleFinalization.unregister(this);
         return ptr;
     }
     free() {
         const ptr = this.__destroy_into_raw();
-        wasm.__wbg_daghandle_free(ptr, 0);
+        wasm.__wbg_wasmdaghandle_free(ptr, 0);
     }
     /**
      * @param {number} a
@@ -24,7 +24,7 @@ export class DagHandle {
      * @returns {number}
      */
     add(a, b) {
-        const ret = wasm.daghandle_add(this.__wbg_ptr, a, b);
+        const ret = wasm.wasmdaghandle_add(this.__wbg_ptr, a, b);
         if (ret[2]) {
             throw takeFromExternrefTable0(ret[1]);
         }
@@ -35,7 +35,7 @@ export class DagHandle {
      * @returns {number}
      */
     constant(value) {
-        const ret = wasm.daghandle_constant(this.__wbg_ptr, value);
+        const ret = wasm.wasmdaghandle_constant(this.__wbg_ptr, value);
         if (ret[2]) {
             throw takeFromExternrefTable0(ret[1]);
         }
@@ -47,45 +47,41 @@ export class DagHandle {
      * @returns {number}
      */
     div(a, b) {
-        const ret = wasm.daghandle_div(this.__wbg_ptr, a, b);
+        const ret = wasm.wasmdaghandle_div(this.__wbg_ptr, a, b);
         if (ret[2]) {
             throw takeFromExternrefTable0(ret[1]);
         }
         return ret[0];
     }
     /**
-     * Evaluate the DAG with null channels (pure math).
-     * Returns the values array as a `Float64Array`.
      * @returns {Float64Array}
      */
     evaluate() {
-        const ret = wasm.daghandle_evaluate(this.__wbg_ptr);
+        const ret = wasm.wasmdaghandle_evaluate(this.__wbg_ptr);
         var v1 = getArrayF64FromWasm0(ret[0], ret[1]).slice();
         wasm.__wbindgen_free(ret[0], ret[1] * 8, 8);
         return v1;
     }
     /**
-     * Get value at a specific node after evaluation.
      * @param {number} node_id
      * @returns {number}
      */
     evaluate_node(node_id) {
-        const ret = wasm.daghandle_evaluate_node(this.__wbg_ptr, node_id);
+        const ret = wasm.wasmdaghandle_evaluate_node(this.__wbg_ptr, node_id);
         return ret;
     }
     /**
-     * Decode from CBOR bytes.
      * @param {Uint8Array} bytes
-     * @returns {DagHandle}
+     * @returns {WasmDagHandle}
      */
     static from_cbor(bytes) {
         const ptr0 = passArray8ToWasm0(bytes, wasm.__wbindgen_malloc);
         const len0 = WASM_VECTOR_LEN;
-        const ret = wasm.daghandle_from_cbor(ptr0, len0);
+        const ret = wasm.wasmdaghandle_from_cbor(ptr0, len0);
         if (ret[2]) {
             throw takeFromExternrefTable0(ret[1]);
         }
-        return DagHandle.__wrap(ret[0]);
+        return WasmDagHandle.__wrap(ret[0]);
     }
     /**
      * @param {string} name
@@ -94,7 +90,7 @@ export class DagHandle {
     input(name) {
         const ptr0 = passStringToWasm0(name, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
-        const ret = wasm.daghandle_input(this.__wbg_ptr, ptr0, len0);
+        const ret = wasm.wasmdaghandle_input(this.__wbg_ptr, ptr0, len0);
         if (ret[2]) {
             throw takeFromExternrefTable0(ret[1]);
         }
@@ -104,14 +100,14 @@ export class DagHandle {
      * @returns {boolean}
      */
     is_empty() {
-        const ret = wasm.daghandle_is_empty(this.__wbg_ptr);
+        const ret = wasm.wasmdaghandle_is_empty(this.__wbg_ptr);
         return ret !== 0;
     }
     /**
      * @returns {number}
      */
     len() {
-        const ret = wasm.daghandle_len(this.__wbg_ptr);
+        const ret = wasm.wasmdaghandle_len(this.__wbg_ptr);
         return ret >>> 0;
     }
     /**
@@ -120,7 +116,7 @@ export class DagHandle {
      * @returns {number}
      */
     mul(a, b) {
-        const ret = wasm.daghandle_mul(this.__wbg_ptr, a, b);
+        const ret = wasm.wasmdaghandle_mul(this.__wbg_ptr, a, b);
         if (ret[2]) {
             throw takeFromExternrefTable0(ret[1]);
         }
@@ -131,16 +127,16 @@ export class DagHandle {
      * @returns {number}
      */
     neg(a) {
-        const ret = wasm.daghandle_neg(this.__wbg_ptr, a);
+        const ret = wasm.wasmdaghandle_neg(this.__wbg_ptr, a);
         if (ret[2]) {
             throw takeFromExternrefTable0(ret[1]);
         }
         return ret[0];
     }
     constructor() {
-        const ret = wasm.daghandle_new();
+        const ret = wasm.wasmdaghandle_new();
         this.__wbg_ptr = ret >>> 0;
-        DagHandleFinalization.register(this, this.__wbg_ptr, this);
+        WasmDagHandleFinalization.register(this, this.__wbg_ptr, this);
         return this;
     }
     /**
@@ -151,7 +147,7 @@ export class DagHandle {
     output(name, src) {
         const ptr0 = passStringToWasm0(name, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
-        const ret = wasm.daghandle_output(this.__wbg_ptr, ptr0, len0, src);
+        const ret = wasm.wasmdaghandle_output(this.__wbg_ptr, ptr0, len0, src);
         if (ret[2]) {
             throw takeFromExternrefTable0(ret[1]);
         }
@@ -163,7 +159,7 @@ export class DagHandle {
      * @returns {number}
      */
     pow(base, exp) {
-        const ret = wasm.daghandle_pow(this.__wbg_ptr, base, exp);
+        const ret = wasm.wasmdaghandle_pow(this.__wbg_ptr, base, exp);
         if (ret[2]) {
             throw takeFromExternrefTable0(ret[1]);
         }
@@ -177,7 +173,7 @@ export class DagHandle {
     publish(topic, src) {
         const ptr0 = passStringToWasm0(topic, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
-        const ret = wasm.daghandle_publish(this.__wbg_ptr, ptr0, len0, src);
+        const ret = wasm.wasmdaghandle_publish(this.__wbg_ptr, ptr0, len0, src);
         if (ret[2]) {
             throw takeFromExternrefTable0(ret[1]);
         }
@@ -188,7 +184,7 @@ export class DagHandle {
      * @returns {number}
      */
     relu(a) {
-        const ret = wasm.daghandle_relu(this.__wbg_ptr, a);
+        const ret = wasm.wasmdaghandle_relu(this.__wbg_ptr, a);
         if (ret[2]) {
             throw takeFromExternrefTable0(ret[1]);
         }
@@ -200,7 +196,7 @@ export class DagHandle {
      * @returns {number}
      */
     sub(a, b) {
-        const ret = wasm.daghandle_sub(this.__wbg_ptr, a, b);
+        const ret = wasm.wasmdaghandle_sub(this.__wbg_ptr, a, b);
         if (ret[2]) {
             throw takeFromExternrefTable0(ret[1]);
         }
@@ -213,49 +209,40 @@ export class DagHandle {
     subscribe(topic) {
         const ptr0 = passStringToWasm0(topic, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
-        const ret = wasm.daghandle_subscribe(this.__wbg_ptr, ptr0, len0);
+        const ret = wasm.wasmdaghandle_subscribe(this.__wbg_ptr, ptr0, len0);
         if (ret[2]) {
             throw takeFromExternrefTable0(ret[1]);
         }
         return ret[0];
     }
     /**
-     * Encode to CBOR bytes.
      * @returns {Uint8Array}
      */
     to_cbor() {
-        const ret = wasm.daghandle_to_cbor(this.__wbg_ptr);
+        const ret = wasm.wasmdaghandle_to_cbor(this.__wbg_ptr);
         var v1 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
         wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
         return v1;
     }
     /**
-     * Get a JSON representation of the DAG structure for the UI.
      * @returns {string}
      */
     to_json() {
-        let deferred2_0;
-        let deferred2_1;
+        let deferred1_0;
+        let deferred1_1;
         try {
-            const ret = wasm.daghandle_to_json(this.__wbg_ptr);
-            var ptr1 = ret[0];
-            var len1 = ret[1];
-            if (ret[3]) {
-                ptr1 = 0; len1 = 0;
-                throw takeFromExternrefTable0(ret[2]);
-            }
-            deferred2_0 = ptr1;
-            deferred2_1 = len1;
-            return getStringFromWasm0(ptr1, len1);
+            const ret = wasm.wasmdaghandle_to_json(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
         } finally {
-            wasm.__wbindgen_free(deferred2_0, deferred2_1, 1);
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
         }
     }
 }
-if (Symbol.dispose) DagHandle.prototype[Symbol.dispose] = DagHandle.prototype.free;
+if (Symbol.dispose) WasmDagHandle.prototype[Symbol.dispose] = WasmDagHandle.prototype.free;
 
 /**
- * Add a block to a graph. Returns block id.
  * @param {number} graph_id
  * @param {string} block_type
  * @param {string} config_json
@@ -274,7 +261,6 @@ export function dataflow_add_block(graph_id, block_type, config_json) {
 }
 
 /**
- * Add a simulated I2C device on the given bus at the given 7-bit address.
  * @param {number} graph_id
  * @param {number} bus
  * @param {number} addr
@@ -290,8 +276,6 @@ export function dataflow_add_i2c_device(graph_id, bus, addr, name) {
 }
 
 /**
- * Advance the graph by wall-clock elapsed seconds (realtime mode).
- * Returns snapshot as a typed JS object.
  * @param {number} graph_id
  * @param {number} elapsed
  * @returns {any}
@@ -305,7 +289,6 @@ export function dataflow_advance(graph_id, elapsed) {
 }
 
 /**
- * List available block types as a typed JS array.
  * @returns {any}
  */
 export function dataflow_block_types() {
@@ -314,8 +297,6 @@ export function dataflow_block_types() {
 }
 
 /**
- * Generate a standalone Rust crate from a dataflow graph.
- * Returns JSON: `{ "files": [["path", "content"], ...] }` or error.
  * @param {number} graph_id
  * @param {number} dt
  * @returns {string}
@@ -340,10 +321,6 @@ export function dataflow_codegen(graph_id, dt) {
 }
 
 /**
- * Generate a multi-target workspace from a dataflow graph.
- *
- * `targets_json` is a JSON array of `{ "target": "host"|"rp2040"|"stm32f4"|"esp32c3", "binding": {...} }`.
- * Returns JSON: `[["path", "content"], ...]` or error.
  * @param {number} graph_id
  * @param {number} dt
  * @param {string} targets_json
@@ -371,7 +348,6 @@ export function dataflow_codegen_multi(graph_id, dt, targets_json) {
 }
 
 /**
- * Configure a simulated serial port. Parity: 0=None, 1=Odd, 2=Even.
  * @param {number} graph_id
  * @param {number} port
  * @param {number} baud
@@ -387,7 +363,6 @@ export function dataflow_configure_serial(graph_id, port, baud, data_bits, parit
 }
 
 /**
- * Connect an output port to an input port. Returns channel id.
  * @param {number} graph_id
  * @param {number} from_block
  * @param {number} from_port
@@ -404,7 +379,6 @@ export function dataflow_connect(graph_id, from_block, from_port, to_block, to_p
 }
 
 /**
- * Destroy a dataflow graph.
  * @param {number} graph_id
  */
 export function dataflow_destroy(graph_id) {
@@ -412,7 +386,6 @@ export function dataflow_destroy(graph_id) {
 }
 
 /**
- * Disconnect a channel.
  * @param {number} graph_id
  * @param {number} channel_id
  */
@@ -424,7 +397,17 @@ export function dataflow_disconnect(graph_id, channel_id) {
 }
 
 /**
- * Read the last PWM duty written by a simulated PWM block.
+ * @returns {any}
+ */
+export function dataflow_function_defs() {
+    const ret = wasm.dataflow_function_defs();
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+
+/**
  * @param {number} graph_id
  * @param {number} channel
  * @returns {number}
@@ -438,22 +421,6 @@ export function dataflow_get_sim_pwm(graph_id, channel) {
 }
 
 /**
- * Read the 256-byte register map of a simulated I2C device (as JSON array).
- * @param {number} graph_id
- * @param {number} bus
- * @param {number} addr
- * @returns {any}
- */
-export function dataflow_i2c_device_registers(graph_id, bus, addr) {
-    const ret = wasm.dataflow_i2c_device_registers(graph_id, bus, addr);
-    if (ret[2]) {
-        throw takeFromExternrefTable0(ret[1]);
-    }
-    return takeFromExternrefTable0(ret[0]);
-}
-
-/**
- * Create a new dataflow graph. Returns its id.
  * @param {number} dt
  * @returns {number}
  */
@@ -463,7 +430,6 @@ export function dataflow_new(dt) {
 }
 
 /**
- * Remove a block from a graph.
  * @param {number} graph_id
  * @param {number} block_id
  */
@@ -475,7 +441,6 @@ export function dataflow_remove_block(graph_id, block_id) {
 }
 
 /**
- * Remove a simulated I2C device.
  * @param {number} graph_id
  * @param {number} bus
  * @param {number} addr
@@ -488,8 +453,6 @@ export function dataflow_remove_i2c_device(graph_id, bus, addr) {
 }
 
 /**
- * Run a fixed number of ticks (non-realtime batch mode).
- * Returns snapshot as a typed JS object.
  * @param {number} graph_id
  * @param {number} steps
  * @param {number} dt
@@ -504,20 +467,6 @@ export function dataflow_run(graph_id, steps, dt) {
 }
 
 /**
- * List all configured serial ports as JSON.
- * @param {number} graph_id
- * @returns {any}
- */
-export function dataflow_serial_ports(graph_id) {
-    const ret = wasm.dataflow_serial_ports(graph_id);
-    if (ret[2]) {
-        throw takeFromExternrefTable0(ret[1]);
-    }
-    return takeFromExternrefTable0(ret[0]);
-}
-
-/**
- * Set a simulated ADC channel voltage.
  * @param {number} graph_id
  * @param {number} channel
  * @param {number} voltage
@@ -530,8 +479,6 @@ export function dataflow_set_sim_adc(graph_id, channel, voltage) {
 }
 
 /**
- * Enable or disable simulation mode for a graph.
- * When enabled, peripheral blocks use SimModel dispatch with simulated peripherals.
  * @param {number} graph_id
  * @param {boolean} enabled
  */
@@ -543,7 +490,6 @@ export function dataflow_set_simulation_mode(graph_id, enabled) {
 }
 
 /**
- * Set the simulation speed multiplier.
  * @param {number} graph_id
  * @param {number} speed
  */
@@ -555,7 +501,6 @@ export function dataflow_set_speed(graph_id, speed) {
 }
 
 /**
- * Get a snapshot of the graph without ticking.
  * @param {number} graph_id
  * @returns {any}
  */
@@ -568,21 +513,6 @@ export function dataflow_snapshot(graph_id) {
 }
 
 /**
- * Drain data from a simulated TCP send buffer (as JSON array).
- * @param {number} graph_id
- * @param {number} socket_id
- * @returns {any}
- */
-export function dataflow_tcp_drain(graph_id, socket_id) {
-    const ret = wasm.dataflow_tcp_drain(graph_id, socket_id);
-    if (ret[2]) {
-        throw takeFromExternrefTable0(ret[1]);
-    }
-    return takeFromExternrefTable0(ret[0]);
-}
-
-/**
- * Inject data into a simulated TCP receive buffer.
  * @param {number} graph_id
  * @param {number} socket_id
  * @param {Uint8Array} data
@@ -597,7 +527,6 @@ export function dataflow_tcp_inject(graph_id, socket_id, data) {
 }
 
 /**
- * Update a block's config by replacing it in-place (preserving channels where ports still match).
  * @param {number} graph_id
  * @param {number} block_id
  * @param {string} block_type
@@ -615,30 +544,56 @@ export function dataflow_update_block(graph_id, block_id, block_type, config_jso
 }
 
 /**
- * Validate whether a connection between two ports is valid.
- * Returns empty string on success, or an error message on failure.
- * @param {number} graph_id
- * @param {number} from_block
- * @param {number} from_port
- * @param {number} to_block
- * @param {number} to_port
- * @returns {string}
+ * @param {string} family
+ * @returns {any}
  */
-export function dataflow_validate_connection(graph_id, from_block, from_port, to_block, to_port) {
-    let deferred1_0;
-    let deferred1_1;
-    try {
-        const ret = wasm.dataflow_validate_connection(graph_id, from_block, from_port, to_block, to_port);
-        deferred1_0 = ret[0];
-        deferred1_1 = ret[1];
-        return getStringFromWasm0(ret[0], ret[1]);
-    } finally {
-        wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+export function mcu_definition(family) {
+    const ptr0 = passStringToWasm0(family, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.mcu_definition(ptr0, len0);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
     }
+    return takeFromExternrefTable0(ret[0]);
 }
 
 /**
- * Add a widget to a panel from JSON config.
+ * @returns {any}
+ */
+export function mcu_families() {
+    const ret = wasm.mcu_families();
+    return ret;
+}
+
+/**
+ * @param {string} family
+ * @returns {any}
+ */
+export function mcu_peripherals(family) {
+    const ptr0 = passStringToWasm0(family, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.mcu_peripherals(ptr0, len0);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+
+/**
+ * @param {string} family
+ * @returns {any}
+ */
+export function mcu_pins(family) {
+    const ptr0 = passStringToWasm0(family, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.mcu_pins(ptr0, len0);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+
+/**
  * @param {number} panel_id
  * @param {string} config_json
  * @returns {number}
@@ -654,7 +609,6 @@ export function panel_add_widget(panel_id, config_json) {
 }
 
 /**
- * Collect output topic values.
  * @param {number} panel_id
  * @returns {string}
  */
@@ -678,7 +632,6 @@ export function panel_collect_outputs(panel_id) {
 }
 
 /**
- * Destroy a panel, removing it from storage.
  * @param {number} panel_id
  */
 export function panel_destroy(panel_id) {
@@ -686,7 +639,6 @@ export function panel_destroy(panel_id) {
 }
 
 /**
- * Get all current topic values as JSON.
  * @param {number} panel_id
  * @returns {string}
  */
@@ -710,7 +662,6 @@ export function panel_get_values(panel_id) {
 }
 
 /**
- * Deserialize a PanelModel from JSON, store it, and return its id.
  * @param {string} json
  * @returns {number}
  */
@@ -725,7 +676,6 @@ export function panel_load(json) {
 }
 
 /**
- * Merge external values into input topics.
  * @param {number} panel_id
  * @param {string} values_json
  */
@@ -739,7 +689,6 @@ export function panel_merge_values(panel_id, values_json) {
 }
 
 /**
- * Create a new empty panel. Returns its id.
  * @param {string} name
  * @returns {number}
  */
@@ -751,7 +700,6 @@ export function panel_new(name) {
 }
 
 /**
- * Remove a widget from a panel.
  * @param {number} panel_id
  * @param {number} widget_id
  * @returns {boolean}
@@ -765,7 +713,6 @@ export function panel_remove_widget(panel_id, widget_id) {
 }
 
 /**
- * Serialize a panel to JSON.
  * @param {number} panel_id
  * @returns {string}
  */
@@ -789,7 +736,6 @@ export function panel_save(panel_id) {
 }
 
 /**
- * Set a topic value from widget interaction.
  * @param {number} panel_id
  * @param {string} topic
  * @param {number} value
@@ -804,7 +750,6 @@ export function panel_set_topic(panel_id, topic, value) {
 }
 
 /**
- * JSON snapshot of the full panel.
  * @param {number} panel_id
  * @returns {string}
  */
@@ -828,7 +773,6 @@ export function panel_snapshot(panel_id) {
 }
 
 /**
- * Update a widget's config. The original widget id is preserved.
  * @param {number} panel_id
  * @param {number} widget_id
  * @param {string} config_json
@@ -841,15 +785,14 @@ export function panel_update_widget(panel_id, widget_id, config_json) {
         throw takeFromExternrefTable0(ret[0]);
     }
 }
-
 function __wbg_get_imports() {
     const import0 = {
         __proto__: null,
-        __wbg_Error_2e59b1b37a9a34c3: function(arg0, arg1) {
+        __wbg_Error_960c155d3d49e4c2: function(arg0, arg1) {
             const ret = Error(getStringFromWasm0(arg0, arg1));
             return ret;
         },
-        __wbg_Number_e6ffdb596c888833: function(arg0) {
+        __wbg_Number_32bf70a599af1d4b: function(arg0) {
             const ret = Number(arg0);
             return ret;
         },
@@ -860,34 +803,34 @@ function __wbg_get_imports() {
             getDataViewMemory0().setInt32(arg0 + 4 * 1, len1, true);
             getDataViewMemory0().setInt32(arg0 + 4 * 0, ptr1, true);
         },
-        __wbg___wbindgen_is_string_b29b5c5a8065ba1a: function(arg0) {
+        __wbg___wbindgen_is_string_6df3bf7ef1164ed3: function(arg0) {
             const ret = typeof(arg0) === 'string';
             return ret;
         },
-        __wbg___wbindgen_throw_81fc77679af83bc6: function(arg0, arg1) {
+        __wbg___wbindgen_throw_6b64449b9b9ed33c: function(arg0, arg1) {
             throw new Error(getStringFromWasm0(arg0, arg1));
         },
-        __wbg_new_4f9fafbb3909af72: function() {
-            const ret = new Object();
-            return ret;
-        },
-        __wbg_new_99cabae501c0a8a0: function() {
+        __wbg_new_34d45cc8e36aaead: function() {
             const ret = new Map();
             return ret;
         },
-        __wbg_new_f3c9df4f38f3f798: function() {
+        __wbg_new_682678e2f47e32bc: function() {
             const ret = new Array();
             return ret;
         },
-        __wbg_set_08463b1df38a7e29: function(arg0, arg1, arg2) {
-            const ret = arg0.set(arg1, arg2);
+        __wbg_new_aa8d0fa9762c29bd: function() {
+            const ret = new Object();
             return ret;
+        },
+        __wbg_set_3bf1de9fab0cd644: function(arg0, arg1, arg2) {
+            arg0[arg1 >>> 0] = arg2;
         },
         __wbg_set_6be42768c690e380: function(arg0, arg1, arg2) {
             arg0[arg1] = arg2;
         },
-        __wbg_set_6c60b2e8ad0e9383: function(arg0, arg1, arg2) {
-            arg0[arg1 >>> 0] = arg2;
+        __wbg_set_fde2cec06c23692b: function(arg0, arg1, arg2) {
+            const ret = arg0.set(arg1, arg2);
+            return ret;
         },
         __wbindgen_cast_0000000000000001: function(arg0) {
             // Cast intrinsic for `F64 -> Externref`.
@@ -925,9 +868,9 @@ function __wbg_get_imports() {
     };
 }
 
-const DagHandleFinalization = (typeof FinalizationRegistry === 'undefined')
+const WasmDagHandleFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
-    : new FinalizationRegistry(ptr => wasm.__wbg_daghandle_free(ptr >>> 0, 1));
+    : new FinalizationRegistry(ptr => wasm.__wbg_wasmdaghandle_free(ptr >>> 0, 1));
 
 function getArrayF64FromWasm0(ptr, len) {
     ptr = ptr >>> 0;

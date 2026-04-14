@@ -1,120 +1,46 @@
 /* tslint:disable */
 /* eslint-disable */
 
-/**
- * Return JSON list of available machine profiles.
- */
 export function available_profiles(): string;
 
-/**
- * Return a default config JSON for the given machine type.
- */
 export function default_config(machine_type: string): string;
 
-/**
- * Return toolpath data as JSON (for the 2-D preview canvas).
- * Returns toolpath moves with Z coordinates for 3D visualization.
- */
 export function preview_stl(data: Uint8Array, config_json: string): string;
 
-/**
- * Return toolpath data from SVG as JSON (for the 2-D preview canvas).
- */
 export function preview_svg(svg_text: string): string;
 
-/**
- * Process an STL file (binary bytes) and return G-code.
- */
 export function process_stl(data: Uint8Array, config_json: string): string;
 
-/**
- * Process an STL file with progress reporting.
- * The callback receives (completed_layers, total_layers) after each layer.
- */
 export function process_stl_progress(data: Uint8Array, config_json: string, on_progress: Function): string;
 
-/**
- * Process an SVG string and return G-code.
- */
 export function process_svg(svg_text: string, config_json: string): string;
 
-/**
- * Process an SVG string with progress reporting.
- * The callback receives (completed_layers, total_layers) after each layer.
- */
 export function process_svg_progress(svg_text: string, config_json: string, on_progress: Function): string;
 
-/**
- * Return flat move list as JSON for the tool simulation.
- * Each move: `{ x, y, z, rapid }`.
- */
 export function sim_moves_stl(data: Uint8Array, config_json: string): string;
 
 export function sim_moves_svg(svg_text: string, config_json: string): string;
 
-/**
- * Add a constraint. `kind` is one of: "coincident", "distance",
- * "horizontal", "vertical", "fixed", "angle", "radius",
- * "perpendicular", "parallel", "midpoint", "equal_length", "symmetric".
- *
- * `ids` is a JSON array of point ids, `value` is the numeric parameter
- * (distance, angle, radius, x, y — depends on constraint type).
- * For "fixed", pass `value` as x and `value2` as y.
- *
- * Returns JSON `{"id": <u32>}`.
- */
 export function sketch_add_constraint(kind: string, ids_json: string, value: number, value2: number): string;
 
-/**
- * Add a fixed point. Returns JSON `{"id": <u32>}`.
- */
 export function sketch_add_fixed_point(x: number, y: number): string;
 
-/**
- * Add a free point. Returns JSON `{"id": <u32>}`.
- */
 export function sketch_add_point(x: number, y: number): string;
 
-/**
- * Move a point to new coordinates.
- */
 export function sketch_move_point(id: number, x: number, y: number): void;
 
-/**
- * Process queued messages and return snapshot JSON.
- */
 export function sketch_pump(): string;
 
-/**
- * Remove a constraint by id.
- */
 export function sketch_remove_constraint(id: number): void;
 
-/**
- * Remove a point and all its constraints.
- */
 export function sketch_remove_point(id: number): void;
 
-/**
- * Reset the sketch actor to a blank state.
- */
 export function sketch_reset(): void;
 
-/**
- * Set a point's fixed flag.
- */
 export function sketch_set_fixed(id: number, fixed: boolean): void;
 
-/**
- * Get current snapshot without solving (read-only query).
- */
 export function sketch_snapshot(): string;
 
-/**
- * Run the constraint solver and return a full snapshot as JSON.
- * The snapshot includes points, constraints, DOF, solve status,
- * and per-point coloring status.
- */
 export function sketch_solve(): string;
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
