@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <title>MCU Control Panel</title>
+    <link rel="stylesheet" href="/cam/pr-preview/pr-33/style-f095b5718db5f612.css" integrity="sha384-FsN+92WDHq5ZgZYChfjyAXJs1bNN+SCHzH3hS2/pIq102vGzBXw2jBi61xJJyk/S"/>
+    
+<script type="module">
+import init, * as bindings from '/cam/pr-preview/pr-33/combined-frontend-4916b87176eab7f6.js';
+const wasm = await init({ module_or_path: '/cam/pr-preview/pr-33/combined-frontend-4916b87176eab7f6_bg.wasm' });
+
+
+window.wasmBindings = bindings;
+
+
+dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
+
+</script>
+<link rel="modulepreload" href="/cam/pr-preview/pr-33/combined-frontend-4916b87176eab7f6.js" crossorigin="anonymous" integrity="sha384-AY+yCsPdp6xCxuBCQQlrf0iyKA+cfbnaSZ/dIpgRVFNG9Gw+x90xC0O0wvKpQmH2"><link rel="preload" href="/cam/pr-preview/pr-33/combined-frontend-4916b87176eab7f6_bg.wasm" crossorigin="anonymous" integrity="sha384-it3H+r8Hkzxa4kcP3zcJuPocx+TOTivoqmlTGh10dCobcP4KeTdBwYohwUkK2LBZ" as="fetch" type="application/wasm"></head>
+<body></body>
+</html>
