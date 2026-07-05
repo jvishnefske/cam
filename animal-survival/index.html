@@ -29,6 +29,12 @@
   #app { width: 100%; max-width: 760px; }
   h1 { font-size: 1.4rem; margin-bottom: 4px; }
   .sub { color: var(--dim); font-size: 0.9rem; margin-bottom: 16px; }
+  #langbar { display: flex; gap: 6px; margin: 6px 0 12px; }
+  #langbar button {
+    background: var(--panel2); border: none; color: var(--dim); border-radius: 8px;
+    padding: 4px 10px; font-size: 0.72rem; font-weight: 700; letter-spacing: .06em; cursor: pointer;
+  }
+  #langbar button.active { background: var(--accent); color: #10151c; }
 
   /* ---- animal picker ---- */
   #picker { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
@@ -154,21 +160,22 @@
 <body>
 <div id="app">
   <h1>🌲 OUTSIDE — Forest Server</h1>
-  <p class="sub">Character select · Current forest meta, ranked. Pick a build and see how many in-game days you can last before you get outplayed.</p>
+  <div id="langbar"></div>
+  <p class="sub" data-i18n="sub">Character select · Current forest meta, ranked. Pick a build and see how many in-game days you can last before you get outplayed.</p>
 
   <div id="picker"></div>
 
   <div id="game">
     <div id="topline">
-      <span class="day">Day <span id="dayNum">1</span></span>
+      <span class="day"><span data-i18n="day">Day</span> <span id="dayNum">1</span></span>
       <span id="playerTag"></span>
       <span class="phase" id="phase">☀️ Day</span>
     </div>
     <div id="hud">
-      <div class="meter"><label>❤️ HP <span id="healthVal"></span></label><div class="track"><div class="fill" id="healthFill"></div></div></div>
-      <div class="meter"><label>🍖 Hunger <span id="foodVal"></span></label><div class="track"><div class="fill" id="foodFill"></div></div></div>
-      <div class="meter"><label>💧 Hydration <span id="waterVal"></span></label><div class="track"><div class="fill" id="waterFill"></div></div></div>
-      <div class="meter"><label>⚡ Stamina <span id="energyVal"></span></label><div class="track"><div class="fill" id="energyFill"></div></div></div>
+      <div class="meter"><label><span data-i18n="hp">❤️ HP</span> <span id="healthVal"></span></label><div class="track"><div class="fill" id="healthFill"></div></div></div>
+      <div class="meter"><label><span data-i18n="hunger">🍖 Hunger</span> <span id="foodVal"></span></label><div class="track"><div class="fill" id="foodFill"></div></div></div>
+      <div class="meter"><label><span data-i18n="hydration">💧 Hydration</span> <span id="waterVal"></span></label><div class="track"><div class="fill" id="waterFill"></div></div></div>
+      <div class="meter"><label><span data-i18n="stamina">⚡ Stamina</span> <span id="energyVal"></span></label><div class="track"><div class="fill" id="energyFill"></div></div></div>
     </div>
     <div id="board"></div>
     <div id="log"></div>
@@ -178,9 +185,9 @@
         <button data-dir="-1,0" aria-label="Left">⬅️</button><button id="restBtn" title="Rest">💤</button><button data-dir="1,0" aria-label="Right">➡️</button>
         <span></span><button data-dir="0,1" aria-label="Down">⬇️</button><span></span>
       </div>
-      <button class="actbtn" id="eatBtn">🍽️ Eat / Fish</button>
+      <button class="actbtn" id="eatBtn" data-i18n="eatBtn">🍽️ Eat / Fish</button>
     </div>
-    <p id="hint">Move: arrows / WASD · Rest: Space · Eat or fish: E · Walk into prey to hunt it. Standing next to water drinks automatically. Trees &amp; tall grass hide small animals.</p>
+    <p id="hint" data-i18n="hint">Move: arrows / WASD · Rest: Space · Eat or fish: E · Walk into prey to hunt it. Standing next to water drinks automatically. Trees &amp; tall grass hide small animals.</p>
   </div>
 </div>
 
@@ -189,7 +196,7 @@
     <div class="face" id="overFace">💀</div>
     <h2 id="overTitle">You died</h2>
     <p id="overText"></p>
-    <button onclick="location.reload()">🔁 Requeue</button>
+    <button onclick="location.reload()" data-i18n="requeue">🔁 Requeue</button>
   </div>
 </div>
 
@@ -203,36 +210,24 @@ const NIGHT_START = 21;           // turn-of-day when night falls
 
 // Sizes: 1 mouse … 6 bear. Predators hunt anything at or below their "hunts" size.
 const ANIMALS = {
-  mouse:  { emoji:"🐭", name:"Mouse",  size:1, speed:5, maxHealth:40,  hungerRate:0.8, thirstRate:1.0,
+  mouse:  { emoji:"🐭", size:1, speed:5, maxHealth:40,  hungerRate:0.8, thirstRate:1.0,
             diet:["grass","berry"], hunts:0, canFish:false, cover:0.85, attack:2,
-            tier:"D", stats:{ INT:4, PWR:1, DEF:1, MBL:5, HP:1, STL:9 },
-            meta:"Hardcore-mode pick",
-            desc:"The ultimate budget build: near-zero upkeep costs and the best stealth stat on the server. The catch? A 1-point HP pool — literally every predator matchup is a one-shot. Camp the grass, never facecheck open ground." },
-  rabbit: { emoji:"🐰", name:"Rabbit", size:2, speed:8, maxHealth:55,  hungerRate:1.0, thirstRate:1.1,
+            tier:"D", stats:{ INT:4, PWR:1, DEF:1, MBL:5, HP:1, STL:9 } },
+  rabbit: { emoji:"🐰", size:2, speed:8, maxHealth:55,  hungerRate:1.0, thirstRate:1.1,
             diet:["grass","berry"], hunts:0, canFish:false, cover:0.6, attack:4,
-            tier:"C", stats:{ INT:3, PWR:2, DEF:2, MBL:9, HP:3, STL:6 },
-            meta:"Classic flee build",
-            desc:"Full stat dump into mobility — the textbook flee build. You out-speed almost every hunter in the meta, but with zero offensive options your entire kit is 'run'. Kite predators into cover and never get cornered." },
-  fox:    { emoji:"🦊", name:"Fox",    size:3, speed:7, maxHealth:70,  hungerRate:1.1, thirstRate:1.1,
+            tier:"C", stats:{ INT:3, PWR:2, DEF:2, MBL:9, HP:3, STL:6 } },
+  fox:    { emoji:"🦊", size:3, speed:7, maxHealth:70,  hungerRate:1.1, thirstRate:1.1,
             diet:["berry"], hunts:2, canFish:false, cover:0.4, attack:14,
-            tier:"B", stats:{ INT:8, PWR:5, DEF:4, MBL:7, HP:4, STL:7 },
-            meta:"Skirmisher / INT carry",
-            desc:"A high-INT skirmisher that farms the rodent player base for easy XP and off-spec's into berries when the hunt RNG is bad. Great mid-game power spike; just dodge the wolf queue — that matchup is basically unwinnable." },
-  deer:   { emoji:"🦌", name:"Deer",   size:4, speed:8, maxHealth:90,  hungerRate:1.3, thirstRate:1.3,
+            tier:"B", stats:{ INT:8, PWR:5, DEF:4, MBL:7, HP:4, STL:7 } },
+  deer:   { emoji:"🦌", size:4, speed:8, maxHealth:90,  hungerRate:1.3, thirstRate:1.3,
             diet:["grass","berry"], hunts:0, canFish:false, cover:0.25, attack:10,
-            tier:"C", stats:{ INT:3, PWR:5, DEF:5, MBL:9, HP:6, STL:3 },
-            meta:"Tanky grazer",
-            desc:"Respectable HP pool, top-tier mobility, and a grazing economy that never runs out of food sources. Unfortunately the upkeep costs are brutal, the stealth stat is a meme at this hitbox size, and wolf mains have you on farm status." },
-  wolf:   { emoji:"🐺", name:"Wolf",   size:5, speed:7, maxHealth:100, hungerRate:1.5, thirstRate:1.2,
+            tier:"C", stats:{ INT:3, PWR:5, DEF:5, MBL:9, HP:6, STL:3 } },
+  wolf:   { emoji:"🐺", size:5, speed:7, maxHealth:100, hungerRate:1.5, thirstRate:1.2,
             diet:[], hunts:4, canFish:false, cover:0.15, attack:22,
-            tier:"A", stats:{ INT:7, PWR:8, DEF:6, MBL:7, HP:7, STL:4 },
-            meta:"High skill ceiling",
-            desc:"The forest's premier carnivore build — favorable matchups into the entire prey roster. The devs balanced it with a meat-only diet and a punishing hunger bar: whiff a few hunts in a row and you starve out. Watch for territorial rival mains." },
-  bear:   { emoji:"🐻", name:"Bear",   size:6, speed:5, maxHealth:130, hungerRate:1.8, thirstRate:1.2,
+            tier:"A", stats:{ INT:7, PWR:8, DEF:6, MBL:7, HP:7, STL:4 } },
+  bear:   { emoji:"🐻", size:6, speed:5, maxHealth:130, hungerRate:1.8, thirstRate:1.2,
             diet:["berry"], hunts:4, canFish:true, cover:0.1, attack:30,
-            tier:"S", stats:{ INT:6, PWR:10, DEF:9, MBL:4, HP:10, STL:1 },
-            meta:"Currently dominating the meta",
-            desc:"No natural counters anywhere on this server — maxed PWR, DEF, and HP make every fight a stat check you win. To keep it from being completely broken, the devs gave it an absurd hunger stat. Abuse the exclusive fishing ability and berry economy." },
+            tier:"S", stats:{ INT:6, PWR:10, DEF:9, MBL:4, HP:10, STL:1 } },
 };
 
 // Wildlife that can roam the map.
@@ -249,8 +244,182 @@ const WILDLIFE = {
 const TILE_EMOJI = { land:"", water:"🌊", tree:"🌲", grass:"🌿", berry:"🍓", rock:"🪨", den:"🕳️" };
 const NUTRITION = { grass:18, berry:30, fish:40 };
 
+// ------------------------------------------------------------------ i18n
+// Critter names carry their definite article ("the wolf", "la volpe") so the
+// message templates below stay grammatical in every language. {Type} = capitalized.
+const T = {
+  en: {
+    sub:"Character select · Current forest meta, ranked. Pick a build and see how many in-game days you can last before you get outplayed.",
+    day:"Day", phaseDay:"☀️ Day", phaseNight:"🌙 Night",
+    hp:"❤️ HP", hunger:"🍖 Hunger", hydration:"💧 Hydration", stamina:"⚡ Stamina",
+    eatBtn:"🍽️ Eat / Fish", requeue:"🔁 Requeue",
+    hint:"Move: arrows / WASD · Rest: Space · Eat or fish: E · Walk into prey to hunt it. Standing next to water drinks automatically. Trees & tall grass hide small animals.",
+    bestRun:"· best run {d}d", tierTag:"{tier}-tier",
+    dayWord1:"day", dayWordN:"days",
+    start:"Queued into the forest server as {animal}. glhf!",
+    deepWater:"The water is too deep to cross.", boulder:"A boulder blocks the way.",
+    exhausted:"Too exhausted to move — you need to rest. 💤",
+    eatBerry:"You eat sweet berries. 🍓", eatGrass:"You graze on fresh grass. 🌿",
+    fishCatch:"Splash! You catch a fish. 🐟", fishMiss:"The fish slips away…",
+    nothingToEat:"Nothing to eat here.",
+    restDen:"You curl up in the den. Safe and warm. 🕳️", restNormal:"You rest a while. 💤",
+    huntCatch:"You catch {type}! A good meal. {emoji}", huntWound:"You wound {type} {emoji} — it fights on!",
+    huntSlip:"{Type} slips away from your attack! {emoji}",
+    strike:"You strike {type} {emoji}!", droveOff:"You drove off {type}!",
+    predDodge:"{Type} {emoji} lunges — you dodge away!", predAttack:"{Type} {emoji} attacks you! −{dmg} HP",
+    fightKill:"You fight back and kill {type}!", predBacksOff:"{Type} backs off, wounded.",
+    dawn:"🌅 Day {n} dawns. You survived the night.", drinkFull:"You drink your fill from the lake. 💧",
+    starvingWarn:"You are starving! ❗", thirstWarn:"You are dying of thirst! ❗",
+    killedBy:"Killed by {type} {emoji}", diedThirst:"Died of thirst 💧", starved:"Starved to death 🦴",
+    overText:"GG — you got outplayed. Your {animal} run lasted {d} {dword}. Personal best on this build: {best} {dwordp}.",
+    critters:{ mouse:"the mouse", rabbit:"the rabbit", deer:"the deer", hawk:"the hawk", fox:"the fox", wolf:"the wolf", rival:"the rival wolf" },
+    animals:{
+      mouse:{ name:"Mouse", meta:"Hardcore-mode pick", desc:"The ultimate budget build: near-zero upkeep costs and the best stealth stat on the server. The catch? A 1-point HP pool — literally every predator matchup is a one-shot. Camp the grass, never facecheck open ground." },
+      rabbit:{ name:"Rabbit", meta:"Classic flee build", desc:"Full stat dump into mobility — the textbook flee build. You out-speed almost every hunter in the meta, but with zero offensive options your entire kit is 'run'. Kite predators into cover and never get cornered." },
+      fox:{ name:"Fox", meta:"Skirmisher / INT carry", desc:"A high-INT skirmisher that farms the rodent player base for easy XP and off-spec's into berries when the hunt RNG is bad. Great mid-game power spike; just dodge the wolf queue — that matchup is basically unwinnable." },
+      deer:{ name:"Deer", meta:"Tanky grazer", desc:"Respectable HP pool, top-tier mobility, and a grazing economy that never runs out of food sources. Unfortunately the upkeep costs are brutal, the stealth stat is a meme at this hitbox size, and wolf mains have you on farm status." },
+      wolf:{ name:"Wolf", meta:"High skill ceiling", desc:"The forest's premier carnivore build — favorable matchups into the entire prey roster. The devs balanced it with a meat-only diet and a punishing hunger bar: whiff a few hunts in a row and you starve out. Watch for territorial rival mains." },
+      bear:{ name:"Bear", meta:"Currently dominating the meta", desc:"No natural counters anywhere on this server — maxed PWR, DEF, and HP make every fight a stat check you win. To keep it from being completely broken, the devs gave it an absurd hunger stat. Abuse the exclusive fishing ability and berry economy." },
+    },
+  },
+  es: {
+    sub:"Selección de personaje · El meta actual del bosque, clasificado. Elige un build y a ver cuántos días aguantas antes de que te hagan el outplay.",
+    day:"Día", phaseDay:"☀️ Día", phaseNight:"🌙 Noche",
+    hp:"❤️ HP", hunger:"🍖 Hambre", hydration:"💧 Hidratación", stamina:"⚡ Energía",
+    eatBtn:"🍽️ Comer / Pescar", requeue:"🔁 Otra partida",
+    hint:"Mover: flechas / WASD · Descansar: Espacio · Comer o pescar: E · Camina hacia una presa para cazarla. Junto al agua bebes automáticamente. Los árboles y la hierba alta esconden a los animales pequeños.",
+    bestRun:"· mejor run {d}d", tierTag:"tier {tier}",
+    dayWord1:"día", dayWordN:"días",
+    start:"Entras al servidor del bosque como {animal}. ¡glhf!",
+    deepWater:"El agua es demasiado profunda para cruzar.", boulder:"Una roca bloquea el camino.",
+    exhausted:"Demasiado agotado para moverte — necesitas descansar. 💤",
+    eatBerry:"Comes bayas dulces. 🍓", eatGrass:"Pastas hierba fresca. 🌿",
+    fishCatch:"¡Splash! Atrapas un pez. 🐟", fishMiss:"El pez se escapa…",
+    nothingToEat:"No hay nada que comer aquí.",
+    restDen:"Te acurrucas en la madriguera. A salvo y calentito. 🕳️", restNormal:"Descansas un rato. 💤",
+    huntCatch:"¡Buena caza! Te comes {type}. {emoji}", huntWound:"¡{Type} {emoji} queda herido — y sigue luchando!",
+    huntSlip:"¡{Type} esquiva tu ataque! {emoji}",
+    strike:"¡{Type} {emoji} recibe tu golpe!", droveOff:"¡{Type} sale huyendo!",
+    predDodge:"¡{Type} {emoji} se abalanza — lo esquivas!", predAttack:"¡{Type} {emoji} te ataca! −{dmg} HP",
+    fightKill:"¡Contraatacas y {type} cae!", predBacksOff:"{Type} retrocede, malherido.",
+    dawn:"🌅 Amanece el día {n}. Sobreviviste a la noche.", drinkFull:"Bebes hasta saciarte en el lago. 💧",
+    starvingWarn:"¡Te mueres de hambre! ❗", thirstWarn:"¡Te mueres de sed! ❗",
+    killedBy:"Te mató {type} {emoji}", diedThirst:"Muerto de sed 💧", starved:"Muerto de hambre 🦴",
+    overText:"GG — te han hecho el outplay. Tu run de {animal} duró {d} {dword}. Récord personal con este build: {best} {dwordp}.",
+    critters:{ mouse:"el ratón", rabbit:"el conejo", deer:"el ciervo", hawk:"el halcón", fox:"el zorro", wolf:"el lobo", rival:"el lobo rival" },
+    animals:{
+      mouse:{ name:"Ratón", meta:"Pick para modo hardcore", desc:"El build low-cost definitivo: mantenimiento casi nulo y el mejor stat de sigilo del servidor. ¿La pega? 1 punto de HP — literalmente cualquier depredador te mata de un golpe. Campea en la hierba y nunca cruces campo abierto." },
+      rabbit:{ name:"Conejo", meta:"El clásico build de huida", desc:"Todos los puntos a movilidad — el build de huida de manual. Corres más que casi cualquier cazador del meta, pero sin opciones ofensivas todo tu kit es 'correr'. Kitea a los depredadores hacia la cobertura y que nunca te acorralen." },
+      fox:{ name:"Zorro", meta:"Skirmisher / carry de INT", desc:"Un skirmisher de INT alta que farmea a la base de jugadores roedores para XP fácil y se pasa a las bayas cuando el RNG de caza va mal. Gran power spike a mitad de partida; eso sí, esquiva la cola contra lobos — ese matchup es prácticamente imposible." },
+      deer:{ name:"Ciervo", meta:"Herbívoro tanque", desc:"Buena reserva de HP, movilidad top y una economía de pasto que nunca se agota. Por desgracia el mantenimiento es brutal, el stat de sigilo es un meme con esta hitbox y los mains de lobo te tienen en modo granja." },
+      wolf:{ name:"Lobo", meta:"Techo de habilidad alto", desc:"El build carnívoro estrella del bosque — matchups favorables contra toda la plantilla de presas. Los devs lo balancearon con dieta solo de carne y una barra de hambre castigadora: falla unas cuantas cacerías seguidas y mueres de hambre. Ojo con los mains rivales territoriales." },
+      bear:{ name:"Oso", meta:"Dominando el meta actual", desc:"Sin counters naturales en todo el servidor — PWR, DEF y HP al máximo convierten cada pelea en un stat check que ganas. Para que no fuera totalmente roto, los devs le pusieron un stat de hambre absurdo. Abusa de la habilidad exclusiva de pesca y de la economía de bayas." },
+    },
+  },
+  it: {
+    sub:"Selezione del personaggio · Il meta attuale della foresta, in classifica. Scegli una build e vedi quanti giorni resisti prima di farti outplayare.",
+    day:"Giorno", phaseDay:"☀️ Giorno", phaseNight:"🌙 Notte",
+    hp:"❤️ HP", hunger:"🍖 Fame", hydration:"💧 Idratazione", stamina:"⚡ Energia",
+    eatBtn:"🍽️ Mangia / Pesca", requeue:"🔁 Nuova partita",
+    hint:"Movimento: frecce / WASD · Riposo: Spazio · Mangia o pesca: E · Vai addosso a una preda per cacciarla. Accanto all'acqua bevi in automatico. Alberi ed erba alta nascondono gli animali piccoli.",
+    bestRun:"· miglior run {d}g", tierTag:"tier {tier}",
+    dayWord1:"giorno", dayWordN:"giorni",
+    start:"Entri nel server della foresta come {animal}. glhf!",
+    deepWater:"L'acqua è troppo profonda per attraversarla.", boulder:"Un masso blocca il passaggio.",
+    exhausted:"Troppo sfinito per muoverti — devi riposare. 💤",
+    eatBerry:"Mangi delle bacche dolci. 🍓", eatGrass:"Bruchi erba fresca. 🌿",
+    fishCatch:"Splash! Prendi un pesce. 🐟", fishMiss:"Il pesce scappa via…",
+    nothingToEat:"Niente da mangiare qui.",
+    restDen:"Ti rannicchi nella tana. Al sicuro e al caldo. 🕳️", restNormal:"Riposi un po'. 💤",
+    huntCatch:"Hai catturato {type}! Un buon pasto. {emoji}", huntWound:"Hai ferito {type} {emoji} — e continua a lottare!",
+    huntSlip:"{Type} schiva il tuo attacco! {emoji}",
+    strike:"Colpisci {type} {emoji}!", droveOff:"Hai messo in fuga {type}!",
+    predDodge:"{Type} {emoji} si lancia su di te — riesci a schivare!", predAttack:"{Type} {emoji} ti attacca! −{dmg} HP",
+    fightKill:"Reagisci e uccidi {type}!", predBacksOff:"{Type} batte in ritirata.",
+    dawn:"🌅 Sorge il giorno {n}. Sei sopravvissuto alla notte.", drinkFull:"Bevi a sazietà dal lago. 💧",
+    starvingWarn:"Stai morendo di fame! ❗", thirstWarn:"Stai morendo di sete! ❗",
+    killedBy:"{Type} ti ha ucciso {emoji}", diedThirst:"Morto di sete 💧", starved:"Morto di fame 🦴",
+    overText:"GG — sei stato outplayato. La tua run da {animal} è durata {d} {dword}. Record personale con questa build: {best} {dwordp}.",
+    critters:{ mouse:"il topo", rabbit:"il coniglio", deer:"il cervo", hawk:"il falco", fox:"la volpe", wolf:"il lupo", rival:"il lupo rivale" },
+    animals:{
+      mouse:{ name:"Topo", meta:"Pick da hardcore", desc:"La build low-cost per eccellenza: costi di mantenimento quasi nulli e la miglior statistica di stealth del server. Il problema? 1 punto HP — letteralmente ogni predatore ti one-shotta. Campera nell'erba e non attraversare mai terreno aperto." },
+      rabbit:{ name:"Coniglio", meta:"La classica build da fuga", desc:"Tutti i punti in mobilità — la build da fuga da manuale. Sei più veloce di quasi ogni cacciatore del meta, ma senza opzioni offensive il tuo intero kit è 'scappa'. Kita i predatori verso la copertura e non farti mai mettere all'angolo." },
+      fox:{ name:"Volpe", meta:"Skirmisher / carry di INT", desc:"Uno skirmisher ad alto INT che farma la player base dei roditori per XP facile e ripiega sulle bacche quando l'RNG di caccia va male. Ottimo power spike a metà partita; evita solo la coda contro i lupi — quel matchup è praticamente impossibile." },
+      deer:{ name:"Cervo", meta:"Erbivoro tank", desc:"Buona riserva di HP, mobilità al top e un'economia di pascolo che non finisce mai. Purtroppo i costi di mantenimento sono brutali, la statistica di stealth è un meme con questa hitbox e i main lupo ti tengono in farm status." },
+      wolf:{ name:"Lupo", meta:"Skill ceiling alto", desc:"La build carnivora di punta della foresta — matchup favorevoli contro l'intero roster delle prede. I dev l'hanno bilanciata con una dieta di sola carne e una barra della fame punitiva: sbaglia qualche caccia di fila e muori di fame. Occhio ai main rivali territoriali." },
+      bear:{ name:"Orso", meta:"Domina il meta attuale", desc:"Nessun counter naturale su tutto il server — PWR, DEF e HP al massimo rendono ogni scontro uno stat check che vinci. Per non renderlo completamente broken, i dev gli hanno dato una statistica di fame assurda. Abusa dell'abilità esclusiva di pesca e dell'economia delle bacche." },
+    },
+  },
+  fr: {
+    sub:"Sélection du personnage · La méta actuelle de la forêt, classée. Choisis une build et vois combien de jours tu tiens avant de te faire outplay.",
+    day:"Jour", phaseDay:"☀️ Jour", phaseNight:"🌙 Nuit",
+    hp:"❤️ PV", hunger:"🍖 Faim", hydration:"💧 Hydratation", stamina:"⚡ Énergie",
+    eatBtn:"🍽️ Manger / Pêcher", requeue:"🔁 Nouvelle partie",
+    hint:"Déplacement : flèches / WASD · Repos : Espace · Manger ou pêcher : E · Avance sur une proie pour la chasser. Près de l'eau, tu bois automatiquement. Les arbres et les hautes herbes cachent les petits animaux.",
+    bestRun:"· meilleure run {d}j", tierTag:"tier {tier}",
+    dayWord1:"jour", dayWordN:"jours",
+    start:"Tu entres sur le serveur de la forêt en tant que {animal}. glhf !",
+    deepWater:"L'eau est trop profonde pour traverser.", boulder:"Un rocher bloque le passage.",
+    exhausted:"Trop épuisé pour bouger — tu dois te reposer. 💤",
+    eatBerry:"Tu manges des baies sucrées. 🍓", eatGrass:"Tu broutes de l'herbe fraîche. 🌿",
+    fishCatch:"Plouf ! Tu attrapes un poisson. 🐟", fishMiss:"Le poisson s'échappe…",
+    nothingToEat:"Rien à manger ici.",
+    restDen:"Tu te blottis dans le terrier. En sécurité, bien au chaud. 🕳️", restNormal:"Tu te reposes un moment. 💤",
+    huntCatch:"Tu attrapes {type} ! Un bon repas. {emoji}", huntWound:"Tu blesses {type} {emoji}, qui continue de se battre !",
+    huntSlip:"{Type} esquive ton attaque ! {emoji}",
+    strike:"Tu frappes {type} {emoji} !", droveOff:"Tu as fait fuir {type} !",
+    predDodge:"{Type} {emoji} bondit sur toi — tu esquives !", predAttack:"{Type} {emoji} t'attaque ! −{dmg} PV",
+    fightKill:"Tu ripostes et tues {type} !", predBacksOff:"{Type} bat en retraite.",
+    dawn:"🌅 Le jour {n} se lève. Tu as survécu à la nuit.", drinkFull:"Tu te désaltères au lac. 💧",
+    starvingWarn:"Tu meurs de faim ! ❗", thirstWarn:"Tu meurs de soif ! ❗",
+    killedBy:"Tué par {type} {emoji}", diedThirst:"Mort de soif 💧", starved:"Mort de faim 🦴",
+    overText:"GG — tu t'es fait outplay. Ta run de {animal} a duré {d} {dword}. Record perso sur cette build : {best} {dwordp}.",
+    critters:{ mouse:"la souris", rabbit:"le lapin", deer:"le cerf", hawk:"le faucon", fox:"le renard", wolf:"le loup", rival:"le loup rival" },
+    animals:{
+      mouse:{ name:"Souris", meta:"Pick mode hardcore", desc:"La build budget par excellence : des coûts d'entretien quasi nuls et la meilleure stat de furtivité du serveur. Le hic ? 1 point de PV — littéralement chaque prédateur te one-shot. Campe dans l'herbe et ne traverse jamais à découvert." },
+      rabbit:{ name:"Lapin", meta:"La build fuite classique", desc:"Tous les points en mobilité — la build de fuite du manuel. Tu sèmes presque tous les chasseurs de la méta, mais sans options offensives tout ton kit se résume à « courir ». Kite les prédateurs vers le couvert et ne te laisse jamais acculer." },
+      fox:{ name:"Renard", meta:"Skirmisher / carry INT", desc:"Un skirmisher à haut INT qui farm la base de joueurs rongeurs pour de l'XP facile et se rabat sur les baies quand la RNG de chasse est mauvaise. Excellent power spike en milieu de partie ; évite juste la file des loups — ce matchup est quasiment injouable." },
+      deer:{ name:"Cerf", meta:"Brouteur tanky", desc:"Une bonne réserve de PV, une mobilité au top et une économie de pâturage inépuisable. Malheureusement, les coûts d'entretien sont brutaux, la stat de furtivité est un meme à cette taille de hitbox, et les mains loup te farment en boucle." },
+      wolf:{ name:"Loup", meta:"Gros skill ceiling", desc:"LA build carnivore de la forêt — des matchups favorables contre tout le roster des proies. Les devs l'ont équilibrée avec un régime 100 % viande et une barre de faim punitive : rate quelques chasses d'affilée et tu meurs de faim. Gare aux mains rivaux territoriaux." },
+      bear:{ name:"Ours", meta:"Domine la méta actuelle", desc:"Aucun counter naturel sur ce serveur — PWR, DEF et PV au max font de chaque combat un stat check gagné d'avance. Pour éviter que ce soit complètement pété, les devs lui ont mis une stat de faim absurde. Abuse de la capacité exclusive de pêche et de l'économie des baies." },
+    },
+  },
+};
+
+const LANG_NAMES = { en:"EN", es:"ES", it:"IT", fr:"FR" };
+let LANG = localStorage.getItem("wildlife-lang");
+if (!T[LANG]) LANG = (navigator.language || "en").slice(0, 2).toLowerCase();
+if (!T[LANG]) LANG = "en";
+
+const t = key => (T[LANG] && T[LANG][key]) ?? T.en[key] ?? key;
+const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+function fmt(str, p = {}) {
+  return str.replace(/\{(\w+)\}/g, (m, k) => {
+    if (k === "type") return T[LANG].critters[p.ct] || p.ct || m;
+    if (k === "Type") return cap(T[LANG].critters[p.ct] || p.ct || m);
+    if (k === "animal") return T[LANG].animals[p.sp].name.toLowerCase();
+    return p[k] !== undefined ? p[k] : m;
+  });
+}
+
+function setLang(code) {
+  LANG = code;
+  localStorage.setItem("wildlife-lang", code);
+  document.documentElement.lang = code;
+  document.querySelectorAll("[data-i18n]").forEach(el => { el.textContent = t(el.dataset.i18n); });
+  document.querySelectorAll("#langbar button").forEach(b => b.classList.toggle("active", b.dataset.lang === code));
+  buildPicker();
+  if (player) {
+    const a = ANIMALS[player.species];
+    document.getElementById("playerTag").textContent =
+      `${a.emoji} ${T[LANG].animals[player.species].name} · ${fmt(t("tierTag"), { tier: a.tier })}`;
+    render();
+    if (over && lastDeath) applyDeathTexts();
+  }
+}
+
 // ------------------------------------------------------------------ state
-let map, player, critters, turn, day, log, over, regrow;
+let map, player, critters, turn, day, log, over, regrow, lastDeath;
 
 const rnd = n => Math.floor(Math.random() * n);
 const chance = p => Math.random() < p;
@@ -324,20 +493,21 @@ function startGame(species) {
   const spot = emptySpot();
   player.x = spot.x; player.y = spot.y;
 
-  const t = threatsFor(species);
-  player.threatList = t.predators;
-  for (const p of t.prey) { spawnCritter(p); spawnCritter(p); }
-  if (t.prey.length) spawnCritter(t.prey[0]);
-  const startPreds = [...t.predators];
+  const th = threatsFor(species);
+  player.threatList = th.predators;
+  for (const p of th.prey) { spawnCritter(p); spawnCritter(p); }
+  if (th.prey.length) spawnCritter(th.prey[0]);
+  const startPreds = [...th.predators];
   while (startPreds.length > 2) startPreds.splice(rnd(startPreds.length), 1);
   for (const pr of startPreds) spawnCritter(pr, true);
 
   turn = 0; day = 1; over = false; log = []; regrow = [];
-  addLog(`Queued into the forest server as a ${a.name.toLowerCase()} ${a.emoji}. glhf!`);
+  addLog("start", { sp: species });
   document.getElementById("picker").style.display = "none";
   document.querySelector(".sub").style.display = "none";
   document.getElementById("game").style.display = "block";
-  document.getElementById("playerTag").textContent = `${a.emoji} ${a.name} · ${a.tier}-tier`;
+  document.getElementById("playerTag").textContent =
+    `${a.emoji} ${T[LANG].animals[species].name} · ${fmt(t("tierTag"), { tier: a.tier })}`;
   render();
 }
 
@@ -353,12 +523,12 @@ function playerMove(dx, dy) {
   const nx = player.x + dx, ny = player.y + dy;
   if (!inBounds(nx, ny)) return;
   const tile = map[ny][nx];
-  if (tile === "water" || tile === "rock") { addLog(tile === "water" ? "The water is too deep to cross." : "A boulder blocks the way."); return; }
+  if (tile === "water" || tile === "rock") { addLog(tile === "water" ? "deepWater" : "boulder"); return; }
 
   const target = critters.find(c => c.x === nx && c.y === ny);
   if (target) { attackCritter(target); endTurn(1.5); return; }
 
-  if (player.energy <= 0) { addLog("Too exhausted to move — you need to rest. 💤"); endTurn(0); return; }
+  if (player.energy <= 0) { addLog("exhausted"); endTurn(0); return; }
 
   player.x = nx; player.y = ny;
   autoForage();
@@ -379,7 +549,7 @@ function eatTile() {
   player.food = Math.min(100, player.food + NUTRITION[kind]);
   map[player.y][player.x] = "land";
   regrow.push({ x: player.x, y: player.y, type: kind === "berry" ? "berry" : "grass", in: kind === "berry" ? 45 : 20 });
-  addLog(kind === "berry" ? "You eat sweet berries. 🍓" : "You graze on fresh grass. 🌿");
+  addLog(kind === "berry" ? "eatBerry" : "eatGrass");
   return true;
 }
 
@@ -390,14 +560,14 @@ function tryEat() {
   if (player.canFish && nearWater()) {
     if (chance(0.5)) {
       player.food = Math.min(100, player.food + NUTRITION.fish);
-      addLog("Splash! You catch a fish. 🐟");
+      addLog("fishCatch");
     } else {
-      addLog("The fish slips away…");
+      addLog("fishMiss");
     }
     endTurn(1);
     return;
   }
-  addLog("Nothing to eat here.");
+  addLog("nothingToEat");
 }
 
 function rest() {
@@ -405,7 +575,7 @@ function rest() {
   const inDen = map[player.y][player.x] === "den";
   const gain = inDen ? 22 : isNight() ? 16 : 10;
   player.energy = Math.min(100, player.energy + gain);
-  addLog(inDen ? "You curl up in the den. Safe and warm. 🕳️" : "You rest a while. 💤");
+  addLog(inDen ? "restDen" : "restNormal");
   endTurn(0, inDen);
 }
 
@@ -429,21 +599,21 @@ function attackCritter(c) {
       if (c.hp <= 0) {
         critters.splice(critters.indexOf(c), 1);
         player.food = Math.min(100, player.food + def.food);
-        addLog(`You catch the ${c.type}! A good meal. ${def.emoji}`);
+        addLog("huntCatch", { ct: c.type, emoji: def.emoji });
       } else {
-        addLog(`You wound the ${c.type} ${def.emoji} — it fights on!`);
+        addLog("huntWound", { ct: c.type, emoji: def.emoji });
       }
     } else {
-      addLog(`The ${c.type} slips away from your attack! ${def.emoji}`);
+      addLog("huntSlip", { ct: c.type, emoji: def.emoji });
       fleeStep(c);
     }
   } else {
     // picking a fight with something you can't eat
     c.hp -= player.attack;
-    addLog(`You strike the ${c.type} ${def.emoji}!`);
+    addLog("strike", { ct: c.type, emoji: def.emoji });
     if (c.hp <= 0) {
       critters.splice(critters.indexOf(c), 1);
-      addLog(`You drove off the ${c.type}!`);
+      addLog("droveOff", { ct: c.type });
     }
   }
 }
@@ -501,12 +671,12 @@ function critterTurn(c) {
   }
 }
 
-function stepToward(c, t) {
-  const dx = Math.sign(t.x - c.x), dy = Math.sign(t.y - c.y);
+function stepToward(c, tgt) {
+  const dx = Math.sign(tgt.x - c.x), dy = Math.sign(tgt.y - c.y);
   const tries = [[dx, dy], [dx, 0], [0, dy]];
   for (const [mx, my] of tries) {
     const x = c.x + mx, y = c.y + my;
-    if (x === t.x && y === t.y) return; // stop adjacent, never share the player's tile
+    if (x === tgt.x && y === tgt.y) return; // stop adjacent, never share the player's tile
     if (inBounds(x, y) && map[y][x] !== "water" && map[y][x] !== "rock" &&
         !critters.some(o => o !== c && o.x === x && o.y === y)) {
       c.x = x; c.y = y; return;
@@ -520,24 +690,24 @@ function predatorAttack(c) {
   let dodge = 0.15 + (player.speed - def.speed) * 0.06;
   if (player.energy < 25) dodge -= 0.15;
   if (chance(Math.max(0.05, dodge))) {
-    addLog(`The ${c.type} ${def.emoji} lunges — you dodge away!`);
+    addLog("predDodge", { ct: c.type, emoji: def.emoji });
     return;
   }
   player.health -= def.damage;
-  addLog(`The ${c.type} ${def.emoji} attacks you! −${def.damage} health`);
+  addLog("predAttack", { ct: c.type, emoji: def.emoji, dmg: def.damage });
   // fight back
   if (player.attack >= 10) {
     c.hp -= player.attack;
     if (c.hp <= 0) {
       critters.splice(critters.indexOf(c), 1);
-      addLog(`You fight back and kill the ${c.type}!`);
+      addLog("fightKill", { ct: c.type });
       if (player.hunts >= def.size) player.food = Math.min(100, player.food + def.food);
     } else if (c.hp < def.hp * 0.3) {
       c.stunned = 2;
-      addLog(`The ${c.type} backs off, wounded.`);
+      addLog("predBacksOff", { ct: c.type });
     }
   }
-  if (player.health <= 0) die(`Killed by a ${c.type} ${def.emoji}`, def.emoji);
+  if (player.health <= 0) die("killedBy", { ct: c.type, emoji: def.emoji }, def.emoji);
 }
 
 function endTurn(energyCost, safe = false) {
@@ -545,7 +715,7 @@ function endTurn(energyCost, safe = false) {
   turn++;
   if (turn % TURNS_PER_DAY === 0) {
     day++;
-    addLog(`🌅 Day ${day} dawns. You survived the night.`);
+    addLog("dawn", { n: day });
     // world replenishes a bit
     if (chance(0.7)) spawnCritter(pick(threatsFor(player.species).prey), true);
     const predCount = critters.filter(c => WILDLIFE[c.type].hunts >= player.size).length;
@@ -560,17 +730,17 @@ function endTurn(energyCost, safe = false) {
   // drink if near water
   if (player.water < 95 && nearWater()) {
     player.water = Math.min(100, player.water + 35);
-    if (player.water >= 95) addLog("You drink your fill from the lake. 💧");
+    if (player.water >= 95) addLog("drinkFull");
   }
 
   // starvation / dehydration / recovery
-  if (player.food <= 0) { player.health -= 3; if (chance(0.3)) addLog("You are starving! ❗"); }
-  if (player.water <= 0) { player.health -= 4; if (chance(0.3)) addLog("You are dying of thirst! ❗"); }
+  if (player.food <= 0) { player.health -= 3; if (chance(0.3)) addLog("starvingWarn"); }
+  if (player.water <= 0) { player.health -= 4; if (chance(0.3)) addLog("thirstWarn"); }
   if (player.food > 40 && player.water > 40 && player.health < player.maxHealth) {
     player.health = Math.min(player.maxHealth, player.health + (safe ? 3 : 1.5));
   }
 
-  if (player.health <= 0) { die(player.water <= 0 ? "Died of thirst 💧" : "Starved to death 🦴", "💀"); render(); return; }
+  if (player.health <= 0) { die(player.water <= 0 ? "diedThirst" : "starved", {}, "💀"); render(); return; }
 
   // wildlife acts (skip if resting safely in a den)
   for (const c of [...critters]) {
@@ -596,19 +766,27 @@ function endTurn(energyCost, safe = false) {
 
 function pick(arr) { return arr[rnd(arr.length)]; }
 
-function die(reason, face) {
+function die(reasonKey, params, face) {
   over = true;
   const best = Math.max(day, +(localStorage.getItem("wildlife-best-" + player.species) || 0));
   localStorage.setItem("wildlife-best-" + player.species, best);
-  document.getElementById("overFace").textContent = face;
-  document.getElementById("overTitle").textContent = reason;
-  document.getElementById("overText").textContent =
-    `GG — you got outplayed. Your ${player.name.toLowerCase()} run lasted ${day} day${day === 1 ? "" : "s"}. Personal best on this build: ${best} days.`;
+  lastDeath = { reasonKey, params, face, best };
+  applyDeathTexts();
   document.getElementById("overlay").style.display = "flex";
 }
 
-function addLog(msg) {
-  log.unshift(msg);
+function applyDeathTexts() {
+  document.getElementById("overFace").textContent = lastDeath.face;
+  document.getElementById("overTitle").textContent = fmt(t(lastDeath.reasonKey), lastDeath.params);
+  document.getElementById("overText").textContent = fmt(t("overText"), {
+    sp: player.species, d: day, best: lastDeath.best,
+    dword: t(day === 1 ? "dayWord1" : "dayWordN"),
+    dwordp: t(lastDeath.best === 1 ? "dayWord1" : "dayWordN"),
+  });
+}
+
+function addLog(key, params) {
+  log.unshift({ k: key, p: params || {} });
   if (log.length > 5) log.pop();
 }
 
@@ -639,7 +817,7 @@ function render() {
   pc.classList.add("player");
 
   boardEl.classList.toggle("night", isNight());
-  document.getElementById("phase").textContent = isNight() ? "🌙 Night" : "☀️ Day";
+  document.getElementById("phase").textContent = t(isNight() ? "phaseNight" : "phaseDay");
   document.getElementById("dayNum").textContent = day;
 
   setMeter("health", player.health, player.maxHealth);
@@ -648,7 +826,7 @@ function render() {
   setMeter("energy", player.energy, 100);
 
   document.getElementById("log").innerHTML =
-    log.map((m, i) => `<div class="${i === 0 ? "latest" : ""}">${m}</div>`).join("");
+    log.map((m, i) => `<div class="${i === 0 ? "latest" : ""}">${fmt(t(m.k), m.p)}</div>`).join("");
 }
 
 function setMeter(id, val, max) {
@@ -660,23 +838,38 @@ function setMeter(id, val, max) {
 const pickerEl = document.getElementById("picker");
 const TIER_ORDER = { S:0, A:1, B:2, C:3, D:4, F:5 };
 const segBar = v => `<div class="seg">${Array.from({ length: 10 }, (_, i) => `<i class="${i < v ? "on" : ""}"></i>`).join("")}</div>`;
-const sorted = Object.entries(ANIMALS).sort((a, b) => TIER_ORDER[a[1].tier] - TIER_ORDER[b[1].tier]);
-for (const [key, a] of sorted) {
-  const best = localStorage.getItem("wildlife-best-" + key);
-  const btn = document.createElement("button");
-  btn.className = "animal-card";
-  btn.innerHTML = `
-    <div class="cardtop"><span class="face">${a.emoji}</span><span class="tier ${a.tier}">${a.tier}</span></div>
-    <h2>${a.name}${best ? ` <small style="color:var(--dim);font-weight:400">· best run ${best}d</small>` : ""}</h2>
-    <p>${a.desc}</p>
-    <div class="statbars">
-      ${Object.entries(a.stats).map(([label, v]) =>
-        `<div class="row"><b>${label}</b>${segBar(v)}<span class="num">${v}</span></div>`).join("")}
-    </div>
-    <div class="metatag">▸ ${a.meta}</div>`;
-  btn.onclick = () => startGame(key);
-  pickerEl.appendChild(btn);
+
+function buildPicker() {
+  pickerEl.innerHTML = "";
+  const sorted = Object.entries(ANIMALS).sort((a, b) => TIER_ORDER[a[1].tier] - TIER_ORDER[b[1].tier]);
+  for (const [key, a] of sorted) {
+    const txt = T[LANG].animals[key];
+    const best = localStorage.getItem("wildlife-best-" + key);
+    const btn = document.createElement("button");
+    btn.className = "animal-card";
+    btn.innerHTML = `
+      <div class="cardtop"><span class="face">${a.emoji}</span><span class="tier ${a.tier}">${a.tier}</span></div>
+      <h2>${txt.name}${best ? ` <small style="color:var(--dim);font-weight:400">${fmt(t("bestRun"), { d: best })}</small>` : ""}</h2>
+      <p>${txt.desc}</p>
+      <div class="statbars">
+        ${Object.entries(a.stats).map(([label, v]) =>
+          `<div class="row"><b>${label}</b>${segBar(v)}<span class="num">${v}</span></div>`).join("")}
+      </div>
+      <div class="metatag">▸ ${txt.meta}</div>`;
+    btn.onclick = () => startGame(key);
+    pickerEl.appendChild(btn);
+  }
 }
+
+const langbarEl = document.getElementById("langbar");
+for (const code of Object.keys(T)) {
+  const b = document.createElement("button");
+  b.dataset.lang = code;
+  b.textContent = LANG_NAMES[code];
+  b.onclick = () => setLang(code);
+  langbarEl.appendChild(b);
+}
+setLang(LANG);
 
 // ------------------------------------------------------------------ input
 document.addEventListener("keydown", e => {
