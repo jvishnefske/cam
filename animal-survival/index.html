@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Wildlife: Survive</title>
+<title>Outside: Forest Server</title>
 <style>
   :root {
     --bg: #10151c;
@@ -44,13 +44,31 @@
     transition: border-color .15s, transform .1s;
   }
   .animal-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+  .animal-card .cardtop { display: flex; align-items: flex-start; justify-content: space-between; }
   .animal-card .face { font-size: 2.2rem; }
   .animal-card h2 { font-size: 1.05rem; margin: 6px 0 2px; }
   .animal-card p { color: var(--dim); font-size: 0.8rem; line-height: 1.35; }
-  .statbars { margin-top: 8px; display: grid; gap: 3px; font-size: 0.68rem; color: var(--dim); }
-  .statbars .row { display: grid; grid-template-columns: 52px 1fr; align-items: center; gap: 6px; }
-  .statbars .track { height: 5px; background: #0c1117; border-radius: 3px; overflow: hidden; }
-  .statbars .fill { height: 100%; background: var(--accent); border-radius: 3px; }
+  .tier {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 34px; height: 34px; border-radius: 8px;
+    font-size: 1.25rem; font-weight: 800; color: #10151c;
+    font-family: "Arial Black", Impact, sans-serif;
+    box-shadow: 0 2px 0 rgba(0,0,0,.4);
+  }
+  .tier.S { background: #ff6b6b; }
+  .tier.A { background: #ffa94d; }
+  .tier.B { background: #ffd43b; }
+  .tier.C { background: #69db7c; }
+  .tier.D { background: #74c0fc; }
+  .tier.F { background: #adb5bd; }
+  .statbars { margin-top: 10px; display: grid; gap: 4px; font-size: 0.66rem; color: var(--dim); }
+  .statbars .row { display: grid; grid-template-columns: 34px 1fr 16px; align-items: center; gap: 6px; }
+  .statbars .row b { color: var(--text); font-weight: 700; letter-spacing: .04em; }
+  .statbars .num { text-align: right; color: var(--dim); font-variant-numeric: tabular-nums; }
+  .seg { display: flex; gap: 2px; }
+  .seg i { flex: 1; height: 8px; background: #0c1117; border-radius: 1px; transform: skewX(-12deg); }
+  .seg i.on { background: #ffd43b; box-shadow: 0 0 4px rgba(255,212,59,.35); }
+  .metatag { margin-top: 10px; font-size: 0.64rem; text-transform: uppercase; letter-spacing: .08em; color: var(--dim); }
 
   /* ---- game screen ---- */
   #game { display: none; }
@@ -135,8 +153,8 @@
 </head>
 <body>
 <div id="app">
-  <h1>🌲 Wildlife: Survive</h1>
-  <p class="sub">Pick an animal and survive as many days as you can. Eat, drink, rest — and don't get eaten.</p>
+  <h1>🌲 OUTSIDE — Forest Server</h1>
+  <p class="sub">Character select · Current forest meta, ranked. Pick a build and see how many in-game days you can last before you get outplayed.</p>
 
   <div id="picker"></div>
 
@@ -147,10 +165,10 @@
       <span class="phase" id="phase">☀️ Day</span>
     </div>
     <div id="hud">
-      <div class="meter"><label>❤️ Health <span id="healthVal"></span></label><div class="track"><div class="fill" id="healthFill"></div></div></div>
-      <div class="meter"><label>🍖 Food <span id="foodVal"></span></label><div class="track"><div class="fill" id="foodFill"></div></div></div>
-      <div class="meter"><label>💧 Water <span id="waterVal"></span></label><div class="track"><div class="fill" id="waterFill"></div></div></div>
-      <div class="meter"><label>⚡ Energy <span id="energyVal"></span></label><div class="track"><div class="fill" id="energyFill"></div></div></div>
+      <div class="meter"><label>❤️ HP <span id="healthVal"></span></label><div class="track"><div class="fill" id="healthFill"></div></div></div>
+      <div class="meter"><label>🍖 Hunger <span id="foodVal"></span></label><div class="track"><div class="fill" id="foodFill"></div></div></div>
+      <div class="meter"><label>💧 Hydration <span id="waterVal"></span></label><div class="track"><div class="fill" id="waterFill"></div></div></div>
+      <div class="meter"><label>⚡ Stamina <span id="energyVal"></span></label><div class="track"><div class="fill" id="energyFill"></div></div></div>
     </div>
     <div id="board"></div>
     <div id="log"></div>
@@ -171,7 +189,7 @@
     <div class="face" id="overFace">💀</div>
     <h2 id="overTitle">You died</h2>
     <p id="overText"></p>
-    <button onclick="location.reload()">Play again</button>
+    <button onclick="location.reload()">🔁 Requeue</button>
   </div>
 </div>
 
@@ -187,22 +205,34 @@ const NIGHT_START = 21;           // turn-of-day when night falls
 const ANIMALS = {
   mouse:  { emoji:"🐭", name:"Mouse",  size:1, speed:5, maxHealth:40,  hungerRate:0.8, thirstRate:1.0,
             diet:["grass","berry"], hunts:0, canFish:false, cover:0.85, attack:2,
-            desc:"Tiny needs and superb at hiding, but everything wants to eat you." },
+            tier:"D", stats:{ INT:4, PWR:1, DEF:1, MBL:5, HP:1, STL:9 },
+            meta:"Hardcore-mode pick",
+            desc:"The ultimate budget build: near-zero upkeep costs and the best stealth stat on the server. The catch? A 1-point HP pool — literally every predator matchup is a one-shot. Camp the grass, never facecheck open ground." },
   rabbit: { emoji:"🐰", name:"Rabbit", size:2, speed:8, maxHealth:55,  hungerRate:1.0, thirstRate:1.1,
             diet:["grass","berry"], hunts:0, canFish:false, cover:0.6, attack:4,
-            desc:"Fast enough to outrun most hunters. Graze, stay near cover, keep moving." },
+            tier:"C", stats:{ INT:3, PWR:2, DEF:2, MBL:9, HP:3, STL:6 },
+            meta:"Classic flee build",
+            desc:"Full stat dump into mobility — the textbook flee build. You out-speed almost every hunter in the meta, but with zero offensive options your entire kit is 'run'. Kite predators into cover and never get cornered." },
   fox:    { emoji:"🦊", name:"Fox",    size:3, speed:7, maxHealth:70,  hungerRate:1.1, thirstRate:1.1,
             diet:["berry"], hunts:2, canFish:false, cover:0.4, attack:14,
-            desc:"Hunts mice and rabbits, snacks on berries. Wolves are the danger." },
+            tier:"B", stats:{ INT:8, PWR:5, DEF:4, MBL:7, HP:4, STL:7 },
+            meta:"Skirmisher / INT carry",
+            desc:"A high-INT skirmisher that farms the rodent player base for easy XP and off-spec's into berries when the hunt RNG is bad. Great mid-game power spike; just dodge the wolf queue — that matchup is basically unwinnable." },
   deer:   { emoji:"🦌", name:"Deer",   size:4, speed:8, maxHealth:90,  hungerRate:1.3, thirstRate:1.3,
             diet:["grass","berry"], hunts:0, canFish:false, cover:0.25, attack:10,
-            desc:"Big, fast grazer. Needs lots of food and water; wolves hunt you." },
+            tier:"C", stats:{ INT:3, PWR:5, DEF:5, MBL:9, HP:6, STL:3 },
+            meta:"Tanky grazer",
+            desc:"Respectable HP pool, top-tier mobility, and a grazing economy that never runs out of food sources. Unfortunately the upkeep costs are brutal, the stealth stat is a meme at this hitbox size, and wolf mains have you on farm status." },
   wolf:   { emoji:"🐺", name:"Wolf",   size:5, speed:7, maxHealth:100, hungerRate:1.5, thirstRate:1.2,
             diet:[], hunts:4, canFish:false, cover:0.15, attack:22,
-            desc:"Apex hunter — meat only. Starvation and rival wolves are your enemies." },
+            tier:"A", stats:{ INT:7, PWR:8, DEF:6, MBL:7, HP:7, STL:4 },
+            meta:"High skill ceiling",
+            desc:"The forest's premier carnivore build — favorable matchups into the entire prey roster. The devs balanced it with a meat-only diet and a punishing hunger bar: whiff a few hunts in a row and you starve out. Watch for territorial rival mains." },
   bear:   { emoji:"🐻", name:"Bear",   size:6, speed:5, maxHealth:130, hungerRate:1.8, thirstRate:1.2,
             diet:["berry"], hunts:4, canFish:true, cover:0.1, attack:30,
-            desc:"Nothing hunts you, but that appetite… Fish, forage berries, hunt deer." },
+            tier:"S", stats:{ INT:6, PWR:10, DEF:9, MBL:4, HP:10, STL:1 },
+            meta:"Currently dominating the meta",
+            desc:"No natural counters anywhere on this server — maxed PWR, DEF, and HP make every fight a stat check you win. To keep it from being completely broken, the devs gave it an absurd hunger stat. Abuse the exclusive fishing ability and berry economy." },
 };
 
 // Wildlife that can roam the map.
@@ -303,11 +333,11 @@ function startGame(species) {
   for (const pr of startPreds) spawnCritter(pr, true);
 
   turn = 0; day = 1; over = false; log = []; regrow = [];
-  addLog(`You are a ${a.name.toLowerCase()} ${a.emoji}. Survive!`);
+  addLog(`Queued into the forest server as a ${a.name.toLowerCase()} ${a.emoji}. glhf!`);
   document.getElementById("picker").style.display = "none";
   document.querySelector(".sub").style.display = "none";
   document.getElementById("game").style.display = "block";
-  document.getElementById("playerTag").textContent = `${a.emoji} ${a.name}`;
+  document.getElementById("playerTag").textContent = `${a.emoji} ${a.name} · ${a.tier}-tier`;
   render();
 }
 
@@ -573,7 +603,7 @@ function die(reason, face) {
   document.getElementById("overFace").textContent = face;
   document.getElementById("overTitle").textContent = reason;
   document.getElementById("overText").textContent =
-    `Your ${player.name.toLowerCase()} survived ${day} day${day === 1 ? "" : "s"}. Best as ${player.name.toLowerCase()}: ${best} days.`;
+    `GG — you got outplayed. Your ${player.name.toLowerCase()} run lasted ${day} day${day === 1 ? "" : "s"}. Personal best on this build: ${best} days.`;
   document.getElementById("overlay").style.display = "flex";
 }
 
@@ -628,20 +658,22 @@ function setMeter(id, val, max) {
 
 // ------------------------------------------------------------------ picker UI
 const pickerEl = document.getElementById("picker");
-for (const [key, a] of Object.entries(ANIMALS)) {
+const TIER_ORDER = { S:0, A:1, B:2, C:3, D:4, F:5 };
+const segBar = v => `<div class="seg">${Array.from({ length: 10 }, (_, i) => `<i class="${i < v ? "on" : ""}"></i>`).join("")}</div>`;
+const sorted = Object.entries(ANIMALS).sort((a, b) => TIER_ORDER[a[1].tier] - TIER_ORDER[b[1].tier]);
+for (const [key, a] of sorted) {
   const best = localStorage.getItem("wildlife-best-" + key);
   const btn = document.createElement("button");
   btn.className = "animal-card";
   btn.innerHTML = `
-    <div class="face">${a.emoji}</div>
-    <h2>${a.name}${best ? ` <small style="color:var(--dim);font-weight:400">· best ${best}d</small>` : ""}</h2>
+    <div class="cardtop"><span class="face">${a.emoji}</span><span class="tier ${a.tier}">${a.tier}</span></div>
+    <h2>${a.name}${best ? ` <small style="color:var(--dim);font-weight:400">· best run ${best}d</small>` : ""}</h2>
     <p>${a.desc}</p>
     <div class="statbars">
-      <div class="row"><span>Speed</span><div class="track"><div class="fill" style="width:${a.speed * 10}%"></div></div></div>
-      <div class="row"><span>Strength</span><div class="track"><div class="fill" style="width:${(a.attack / 30) * 100}%"></div></div></div>
-      <div class="row"><span>Stealth</span><div class="track"><div class="fill" style="width:${a.cover * 100}%"></div></div></div>
-      <div class="row"><span>Appetite</span><div class="track"><div class="fill" style="width:${(a.hungerRate / 1.8) * 100}%;background:var(--warn)"></div></div></div>
-    </div>`;
+      ${Object.entries(a.stats).map(([label, v]) =>
+        `<div class="row"><b>${label}</b>${segBar(v)}<span class="num">${v}</span></div>`).join("")}
+    </div>
+    <div class="metatag">▸ ${a.meta}</div>`;
   btn.onclick = () => startGame(key);
   pickerEl.appendChild(btn);
 }
