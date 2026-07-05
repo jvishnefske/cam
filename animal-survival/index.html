@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Wildlife: Survive</title>
+<style>
+  :root {
+    --bg: #10151c;
+    --panel: #1a222d;
+    --panel2: #212c3a;
+    --text: #e8eef5;
+    --dim: #8fa1b5;
+    --accent: #6ee7a0;
+    --danger: #f87171;
+    --warn: #fbbf24;
+    --water: #60a5fa;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    display: flex;
+    justify-content: center;
+    padding: 12px;
+  }
+  #app { width: 100%; max-width: 760px; }
+  h1 { font-size: 1.4rem; margin-bottom: 4px; }
+  .sub { color: var(--dim); font-size: 0.9rem; margin-bottom: 16px; }
+
+  /* ---- animal picker ---- */
+  #picker { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+  .animal-card {
+    background: var(--panel);
+    border: 2px solid transparent;
+    border-radius: 12px;
+    padding: 14px;
+    cursor: pointer;
+    text-align: left;
+    color: var(--text);
+    font: inherit;
+    transition: border-color .15s, transform .1s;
+  }
+  .animal-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+  .animal-card .face { font-size: 2.2rem; }
+  .animal-card h2 { font-size: 1.05rem; margin: 6px 0 2px; }
+  .animal-card p { color: var(--dim); font-size: 0.8rem; line-height: 1.35; }
+  .statbars { margin-top: 8px; display: grid; gap: 3px; font-size: 0.68rem; color: var(--dim); }
+  .statbars .row { display: grid; grid-template-columns: 52px 1fr; align-items: center; gap: 6px; }
+  .statbars .track { height: 5px; background: #0c1117; border-radius: 3px; overflow: hidden; }
+  .statbars .fill { height: 100%; background: var(--accent); border-radius: 3px; }
+
+  /* ---- game screen ---- */
+  #game { display: none; }
+  #hud {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
+    margin-bottom: 10px;
+  }
+  .meter { background: var(--panel); border-radius: 10px; padding: 8px 10px; }
+  .meter label { font-size: 0.68rem; color: var(--dim); text-transform: uppercase; letter-spacing: .05em; display: flex; justify-content: space-between; }
+  .meter .track { height: 8px; background: #0c1117; border-radius: 4px; margin-top: 5px; overflow: hidden; }
+  .meter .fill { height: 100%; border-radius: 4px; transition: width .25s; }
+  #healthFill { background: var(--danger); }
+  #foodFill   { background: var(--warn); }
+  #waterFill  { background: var(--water); }
+  #energyFill { background: var(--accent); }
+
+  #topline { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 0.9rem; }
+  #topline .day { font-weight: 600; }
+  #topline .phase { color: var(--dim); }
+
+  #board {
+    display: grid;
+    gap: 1px;
+    background: #000;
+    border-radius: 10px;
+    padding: 4px;
+    user-select: none;
+    touch-action: manipulation;
+    transition: filter .6s;
+  }
+  #board.night { filter: brightness(0.55) saturate(0.7) hue-rotate(-15deg); }
+  .cell {
+    aspect-ratio: 1;
+    display: flex; align-items: center; justify-content: center;
+    font-size: clamp(14px, 3.4vw, 26px);
+    background: #223425;
+    border-radius: 3px;
+    line-height: 1;
+    overflow: hidden;
+  }
+  .cell.water { background: #1b3a5c; }
+  .cell.player { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+  #log {
+    background: var(--panel);
+    border-radius: 10px;
+    padding: 8px 12px;
+    margin-top: 10px;
+    min-height: 74px;
+    font-size: 0.8rem;
+    color: var(--dim);
+    line-height: 1.5;
+  }
+  #log .latest { color: var(--text); }
+
+  #controls { display: flex; gap: 16px; align-items: center; justify-content: center; margin-top: 12px; flex-wrap: wrap; }
+  #dpad { display: grid; grid-template-columns: repeat(3, 52px); grid-template-rows: repeat(3, 52px); gap: 4px; }
+  #dpad button, .actbtn {
+    background: var(--panel2); color: var(--text); border: none; border-radius: 10px;
+    font-size: 1.1rem; cursor: pointer;
+  }
+  #dpad button:active, .actbtn:active { background: #2f3f52; }
+  .actbtn { padding: 0 18px; height: 52px; font-size: 0.9rem; }
+  #hint { text-align: center; color: var(--dim); font-size: 0.75rem; margin-top: 10px; }
+
+  /* ---- game over ---- */
+  #overlay {
+    position: fixed; inset: 0; background: rgba(8, 11, 15, 0.86);
+    display: none; align-items: center; justify-content: center; z-index: 10;
+  }
+  #overlay .box {
+    background: var(--panel); border-radius: 14px; padding: 28px 32px; text-align: center; max-width: 340px;
+  }
+  #overlay .face { font-size: 3rem; }
+  #overlay h2 { margin: 10px 0 6px; }
+  #overlay p { color: var(--dim); font-size: 0.9rem; margin-bottom: 16px; }
+  #overlay button {
+    background: var(--accent); color: #10151c; border: none; border-radius: 10px;
+    padding: 10px 22px; font-size: 0.95rem; font-weight: 600; cursor: pointer;
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <h1>🌲 Wildlife: Survive</h1>
+  <p class="sub">Pick an animal and survive as many days as you can. Eat, drink, rest — and don't get eaten.</p>
+
+  <div id="picker"></div>
+
+  <div id="game">
+    <div id="topline">
+      <span class="day">Day <span id="dayNum">1</span></span>
+      <span id="playerTag"></span>
+      <span class="phase" id="phase">☀️ Day</span>
+    </div>
+    <div id="hud">
+      <div class="meter"><label>❤️ Health <span id="healthVal"></span></label><div class="track"><div class="fill" id="healthFill"></div></div></div>
+      <div class="meter"><label>🍖 Food <span id="foodVal"></span></label><div class="track"><div class="fill" id="foodFill"></div></div></div>
+      <div class="meter"><label>💧 Water <span id="waterVal"></span></label><div class="track"><div class="fill" id="waterFill"></div></div></div>
+      <div class="meter"><label>⚡ Energy <span id="energyVal"></span></label><div class="track"><div class="fill" id="energyFill"></div></div></div>
+    </div>
+    <div id="board"></div>
+    <div id="log"></div>
+    <div id="controls">
+      <div id="dpad">
+        <span></span><button data-dir="0,-1" aria-label="Up">⬆️</button><span></span>
+        <button data-dir="-1,0" aria-label="Left">⬅️</button><button id="restBtn" title="Rest">💤</button><button data-dir="1,0" aria-label="Right">➡️</button>
+        <span></span><button data-dir="0,1" aria-label="Down">⬇️</button><span></span>
+      </div>
+      <button class="actbtn" id="eatBtn">🍽️ Eat / Fish</button>
+    </div>
+    <p id="hint">Move: arrows / WASD · Rest: Space · Eat or fish: E · Walk into prey to hunt it. Standing next to water drinks automatically. Trees &amp; tall grass hide small animals.</p>
+  </div>
+</div>
+
+<div id="overlay">
+  <div class="box">
+    <div class="face" id="overFace">💀</div>
+    <h2 id="overTitle">You died</h2>
+    <p id="overText"></p>
+    <button onclick="location.reload()">Play again</button>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+// ------------------------------------------------------------------ config
+const W = 16, H = 12;
+const TURNS_PER_DAY = 30;
+const NIGHT_START = 21;           // turn-of-day when night falls
+
+// Sizes: 1 mouse … 6 bear. Predators hunt anything at or below their "hunts" size.
+const ANIMALS = {
+  mouse:  { emoji:"🐭", name:"Mouse",  size:1, speed:5, maxHealth:40,  hungerRate:0.8, thirstRate:1.0,
+            diet:["grass","berry"], hunts:0, canFish:false, cover:0.85, attack:2,
+            desc:"Tiny needs and superb at hiding, but everything wants to eat you." },
+  rabbit: { emoji:"🐰", name:"Rabbit", size:2, speed:8, maxHealth:55,  hungerRate:1.0, thirstRate:1.1,
+            diet:["grass","berry"], hunts:0, canFish:false, cover:0.6, attack:4,
+            desc:"Fast enough to outrun most hunters. Graze, stay near cover, keep moving." },
+  fox:    { emoji:"🦊", name:"Fox",    size:3, speed:7, maxHealth:70,  hungerRate:1.1, thirstRate:1.1,
+            diet:["berry"], hunts:2, canFish:false, cover:0.4, attack:14,
+            desc:"Hunts mice and rabbits, snacks on berries. Wolves are the danger." },
+  deer:   { emoji:"🦌", name:"Deer",   size:4, speed:8, maxHealth:90,  hungerRate:1.3, thirstRate:1.3,
+            diet:["grass","berry"], hunts:0, canFish:false, cover:0.25, attack:10,
+            desc:"Big, fast grazer. Needs lots of food and water; wolves hunt you." },
+  wolf:   { emoji:"🐺", name:"Wolf",   size:5, speed:7, maxHealth:100, hungerRate:1.5, thirstRate:1.2,
+            diet:[], hunts:4, canFish:false, cover:0.15, attack:22,
+            desc:"Apex hunter — meat only. Starvation and rival wolves are your enemies." },
+  bear:   { emoji:"🐻", name:"Bear",   size:6, speed:5, maxHealth:130, hungerRate:1.8, thirstRate:1.2,
+            diet:["berry"], hunts:4, canFish:true, cover:0.1, attack:30,
+            desc:"Nothing hunts you, but that appetite… Fish, forage berries, hunt deer." },
+};
+
+// Wildlife that can roam the map.
+const WILDLIFE = {
+  mouse:  { emoji:"🐭", size:1, speed:5, hp:15,  hunts:0, damage:0,  food:22, prey:true },
+  rabbit: { emoji:"🐰", size:2, speed:8, hp:25,  hunts:0, damage:0,  food:40, prey:true },
+  deer:   { emoji:"🦌", size:4, speed:8, hp:55,  hunts:0, damage:8,  food:95, prey:true },
+  hawk:   { emoji:"🦅", size:2, speed:9, hp:30,  hunts:1, damage:14, food:25, prey:false },
+  fox:    { emoji:"🦊", size:3, speed:7, hp:45,  hunts:2, damage:18, food:45, prey:false },
+  wolf:   { emoji:"🐺", size:5, speed:7, hp:80,  hunts:4, damage:26, food:70, prey:false },
+  rival:  { emoji:"🐺", size:5, speed:7, hp:80,  hunts:5, damage:26, food:70, prey:false }, // territorial rival
+};
+
+const TILE_EMOJI = { land:"", water:"🌊", tree:"🌲", grass:"🌿", berry:"🍓", rock:"🪨", den:"🕳️" };
+const NUTRITION = { grass:18, berry:30, fish:40 };
+
+// ------------------------------------------------------------------ state
+let map, player, critters, turn, day, log, over, regrow;
+
+const rnd = n => Math.floor(Math.random() * n);
+const chance = p => Math.random() < p;
+const dist = (a, b) => Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
+const inBounds = (x, y) => x >= 0 && x < W && y >= 0 && y < H;
+
+function makeMap() {
+  map = Array.from({ length: H }, () => Array.from({ length: W }, () => "land"));
+  // lake: random blob
+  let lx = 2 + rnd(W - 6), ly = 2 + rnd(H - 5);
+  for (let i = 0; i < 7; i++) {
+    map[ly][lx] = "water";
+    if (inBounds(lx + 1, ly)) map[ly][lx + 1] = "water";
+    if (inBounds(lx, ly + 1)) map[ly + 1][lx] = "water";
+    lx += rnd(3) - 1; ly += rnd(3) - 1;
+    lx = Math.max(1, Math.min(W - 2, lx)); ly = Math.max(1, Math.min(H - 2, ly));
+  }
+  const scatter = (type, count) => {
+    for (let i = 0; i < count; i++) {
+      const x = rnd(W), y = rnd(H);
+      if (map[y][x] === "land") map[y][x] = type;
+    }
+  };
+  scatter("tree", 22);
+  scatter("grass", 16);
+  scatter("berry", 8);
+  scatter("rock", 5);
+  scatter("den", 2);
+}
+
+function emptySpot(minDistFromPlayer = 0) {
+  for (let i = 0; i < 300; i++) {
+    const x = rnd(W), y = rnd(H);
+    if (map[y][x] === "water" || map[y][x] === "rock") continue;
+    if (critters.some(c => c.x === x && c.y === y)) continue;
+    if (player && (x === player.x && y === player.y)) continue;
+    if (player && minDistFromPlayer && dist({ x, y }, player) < minDistFromPlayer) continue;
+    return { x, y };
+  }
+  return null;
+}
+
+function spawnCritter(type, far) {
+  const spot = emptySpot(far ? 6 : 0);
+  if (!spot) return;
+  const def = WILDLIFE[type];
+  critters.push({ type, ...spot, hp: def.hp, stunned: 0 });
+}
+
+function threatsFor(species) {
+  // which wildlife hunt this player, and what prey shares the map
+  switch (species) {
+    case "mouse":  return { predators:["hawk","fox","wolf"], prey:["rabbit","deer"] };
+    case "rabbit": return { predators:["hawk","fox","wolf"], prey:["mouse","deer"] };
+    case "fox":    return { predators:["wolf"],              prey:["mouse","rabbit","deer"] };
+    case "deer":   return { predators:["wolf"],              prey:["mouse","rabbit"] };
+    case "wolf":   return { predators:["rival"],             prey:["mouse","rabbit","deer"] };
+    case "bear":   return { predators:[],                    prey:["mouse","rabbit","deer","wolf"] };
+  }
+}
+
+function startGame(species) {
+  const a = ANIMALS[species];
+  makeMap();
+  critters = [];
+  player = {
+    species, ...a,
+    x: 0, y: 0,
+    health: a.maxHealth, food: 55, water: 55, energy: 100,
+  };
+  const spot = emptySpot();
+  player.x = spot.x; player.y = spot.y;
+
+  const t = threatsFor(species);
+  player.threatList = t.predators;
+  for (const p of t.prey) { spawnCritter(p); spawnCritter(p); }
+  if (t.prey.length) spawnCritter(t.prey[0]);
+  const startPreds = [...t.predators];
+  while (startPreds.length > 2) startPreds.splice(rnd(startPreds.length), 1);
+  for (const pr of startPreds) spawnCritter(pr, true);
+
+  turn = 0; day = 1; over = false; log = []; regrow = [];
+  addLog(`You are a ${a.name.toLowerCase()} ${a.emoji}. Survive!`);
+  document.getElementById("picker").style.display = "none";
+  document.querySelector(".sub").style.display = "none";
+  document.getElementById("game").style.display = "block";
+  document.getElementById("playerTag").textContent = `${a.emoji} ${a.name}`;
+  render();
+}
+
+// ------------------------------------------------------------------ turn logic
+function isNight() { return (turn % TURNS_PER_DAY) >= NIGHT_START; }
+function inCover() {
+  const t = map[player.y][player.x];
+  return t === "tree" || t === "grass" || t === "den";
+}
+
+function playerMove(dx, dy) {
+  if (over) return;
+  const nx = player.x + dx, ny = player.y + dy;
+  if (!inBounds(nx, ny)) return;
+  const tile = map[ny][nx];
+  if (tile === "water" || tile === "rock") { addLog(tile === "water" ? "The water is too deep to cross." : "A boulder blocks the way."); return; }
+
+  const target = critters.find(c => c.x === nx && c.y === ny);
+  if (target) { attackCritter(target); endTurn(1.5); return; }
+
+  if (player.energy <= 0) { addLog("Too exhausted to move — you need to rest. 💤"); endTurn(0); return; }
+
+  player.x = nx; player.y = ny;
+  autoForage();
+  endTurn(1.5);
+}
+
+function autoForage() {
+  const tile = map[player.y][player.x];
+  if ((tile === "grass" || tile === "berry") && player.diet.includes(tile === "berry" ? "berry" : "grass") && player.food < 90) {
+    eatTile();
+  }
+}
+
+function eatTile() {
+  const tile = map[player.y][player.x];
+  const kind = tile === "berry" ? "berry" : tile === "grass" ? "grass" : null;
+  if (!kind || !player.diet.includes(kind)) return false;
+  player.food = Math.min(100, player.food + NUTRITION[kind]);
+  map[player.y][player.x] = "land";
+  regrow.push({ x: player.x, y: player.y, type: kind === "berry" ? "berry" : "grass", in: kind === "berry" ? 45 : 20 });
+  addLog(kind === "berry" ? "You eat sweet berries. 🍓" : "You graze on fresh grass. 🌿");
+  return true;
+}
+
+function tryEat() {
+  if (over) return;
+  if (eatTile()) { endTurn(0.5); return; }
+  // fishing
+  if (player.canFish && nearWater()) {
+    if (chance(0.5)) {
+      player.food = Math.min(100, player.food + NUTRITION.fish);
+      addLog("Splash! You catch a fish. 🐟");
+    } else {
+      addLog("The fish slips away…");
+    }
+    endTurn(1);
+    return;
+  }
+  addLog("Nothing to eat here.");
+}
+
+function rest() {
+  if (over) return;
+  const inDen = map[player.y][player.x] === "den";
+  const gain = inDen ? 22 : isNight() ? 16 : 10;
+  player.energy = Math.min(100, player.energy + gain);
+  addLog(inDen ? "You curl up in the den. Safe and warm. 🕳️" : "You rest a while. 💤");
+  endTurn(0, inDen);
+}
+
+function nearWater() {
+  for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+    const x = player.x + dx, y = player.y + dy;
+    if (inBounds(x, y) && map[y][x] === "water") return true;
+  }
+  return false;
+}
+
+function attackCritter(c) {
+  const def = WILDLIFE[c.type];
+  if (def.prey || player.hunts >= def.size) {
+    // hunt attempt: success depends on speed difference and energy
+    let p = 0.45 + (player.speed - def.speed) * 0.08;
+    if (player.energy < 30) p -= 0.2;
+    p = Math.max(0.1, Math.min(0.9, p));
+    if (def.hp <= player.attack || chance(p)) {
+      c.hp -= player.attack;
+      if (c.hp <= 0) {
+        critters.splice(critters.indexOf(c), 1);
+        player.food = Math.min(100, player.food + def.food);
+        addLog(`You catch the ${c.type}! A good meal. ${def.emoji}`);
+      } else {
+        addLog(`You wound the ${c.type} ${def.emoji} — it fights on!`);
+      }
+    } else {
+      addLog(`The ${c.type} slips away from your attack! ${def.emoji}`);
+      fleeStep(c);
+    }
+  } else {
+    // picking a fight with something you can't eat
+    c.hp -= player.attack;
+    addLog(`You strike the ${c.type} ${def.emoji}!`);
+    if (c.hp <= 0) {
+      critters.splice(critters.indexOf(c), 1);
+      addLog(`You drove off the ${c.type}!`);
+    }
+  }
+}
+
+function fleeStep(c) {
+  const options = [];
+  for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+    const x = c.x + dx, y = c.y + dy;
+    if (!inBounds(x, y) || map[y][x] === "water" || map[y][x] === "rock") continue;
+    if (x === player.x && y === player.y) continue;
+    if (critters.some(o => o !== c && o.x === x && o.y === y)) continue;
+    options.push({ x, y, d: dist({ x, y }, player) });
+  }
+  options.sort((a, b) => b.d - a.d);
+  if (options.length) { c.x = options[0].x; c.y = options[0].y; }
+}
+
+function critterTurn(c) {
+  const def = WILDLIFE[c.type];
+  if (c.stunned > 0) { c.stunned--; return; }
+
+  const huntsPlayer = def.hunts >= player.size;
+  const playerHuntsIt = def.prey || player.hunts >= def.size;
+  const d = dist(c, player);
+
+  // detection: cover hides you, night helps nocturnal hunters see less far overall
+  let sight = isNight() ? 4 : 5;
+  if (c.type === "hawk") sight = isNight() ? 2 : 7; // hawks hunt by day
+  const hidden = inCover() && chance(player.cover);
+
+  if (huntsPlayer && d <= sight && !hidden && c.hp > WILDLIFE[c.type].hp * 0.3) {
+    // chases are tiring — sometimes the hunter gives up
+    if (chance(0.08)) { c.stunned = 3; return; }
+    // chase
+    const steps = def.speed > player.speed && turn % 3 === 0 ? 2 : 1;
+    for (let s = 0; s < steps; s++) {
+      if (dist(c, player) <= 1) { predatorAttack(c); return; }
+      stepToward(c, player);
+    }
+    if (dist(c, player) <= 1) predatorAttack(c);
+    return;
+  }
+
+  if (playerHuntsIt && d <= 3 && !hidden) { fleeStep(c); return; }
+
+  // wander
+  if (chance(0.6)) {
+    const dx = rnd(3) - 1, dy = rnd(3) - 1;
+    const x = c.x + dx, y = c.y + dy;
+    if (inBounds(x, y) && map[y][x] !== "water" && map[y][x] !== "rock" &&
+        !(x === player.x && y === player.y) &&
+        !critters.some(o => o !== c && o.x === x && o.y === y)) {
+      c.x = x; c.y = y;
+    }
+  }
+}
+
+function stepToward(c, t) {
+  const dx = Math.sign(t.x - c.x), dy = Math.sign(t.y - c.y);
+  const tries = [[dx, dy], [dx, 0], [0, dy]];
+  for (const [mx, my] of tries) {
+    const x = c.x + mx, y = c.y + my;
+    if (x === t.x && y === t.y) return; // stop adjacent, never share the player's tile
+    if (inBounds(x, y) && map[y][x] !== "water" && map[y][x] !== "rock" &&
+        !critters.some(o => o !== c && o.x === x && o.y === y)) {
+      c.x = x; c.y = y; return;
+    }
+  }
+}
+
+function predatorAttack(c) {
+  const def = WILDLIFE[c.type];
+  // chance to dodge based on speed & energy
+  let dodge = 0.15 + (player.speed - def.speed) * 0.06;
+  if (player.energy < 25) dodge -= 0.15;
+  if (chance(Math.max(0.05, dodge))) {
+    addLog(`The ${c.type} ${def.emoji} lunges — you dodge away!`);
+    return;
+  }
+  player.health -= def.damage;
+  addLog(`The ${c.type} ${def.emoji} attacks you! −${def.damage} health`);
+  // fight back
+  if (player.attack >= 10) {
+    c.hp -= player.attack;
+    if (c.hp <= 0) {
+      critters.splice(critters.indexOf(c), 1);
+      addLog(`You fight back and kill the ${c.type}!`);
+      if (player.hunts >= def.size) player.food = Math.min(100, player.food + def.food);
+    } else if (c.hp < def.hp * 0.3) {
+      c.stunned = 2;
+      addLog(`The ${c.type} backs off, wounded.`);
+    }
+  }
+  if (player.health <= 0) die(`Killed by a ${c.type} ${def.emoji}`, def.emoji);
+}
+
+function endTurn(energyCost, safe = false) {
+  if (over) return;
+  turn++;
+  if (turn % TURNS_PER_DAY === 0) {
+    day++;
+    addLog(`🌅 Day ${day} dawns. You survived the night.`);
+    // world replenishes a bit
+    if (chance(0.7)) spawnCritter(pick(threatsFor(player.species).prey), true);
+    const predCount = critters.filter(c => WILDLIFE[c.type].hunts >= player.size).length;
+    if (chance(0.35) && player.threatList.length && predCount < 3) spawnCritter(pick(player.threatList), true);
+  }
+
+  // needs
+  player.food = Math.max(0, player.food - player.hungerRate);
+  player.water = Math.max(0, player.water - player.thirstRate);
+  player.energy = Math.max(0, player.energy - energyCost);
+
+  // drink if near water
+  if (player.water < 95 && nearWater()) {
+    player.water = Math.min(100, player.water + 35);
+    if (player.water >= 95) addLog("You drink your fill from the lake. 💧");
+  }
+
+  // starvation / dehydration / recovery
+  if (player.food <= 0) { player.health -= 3; if (chance(0.3)) addLog("You are starving! ❗"); }
+  if (player.water <= 0) { player.health -= 4; if (chance(0.3)) addLog("You are dying of thirst! ❗"); }
+  if (player.food > 40 && player.water > 40 && player.health < player.maxHealth) {
+    player.health = Math.min(player.maxHealth, player.health + (safe ? 3 : 1.5));
+  }
+
+  if (player.health <= 0) { die(player.water <= 0 ? "Died of thirst 💧" : "Starved to death 🦴", "💀"); render(); return; }
+
+  // wildlife acts (skip if resting safely in a den)
+  for (const c of [...critters]) {
+    if (safe && map[player.y][player.x] === "den") {
+      // hidden in den: predators can't reach you
+      if (WILDLIFE[c.type].hunts >= player.size) continue;
+    }
+    critterTurn(c);
+    if (over) break;
+  }
+
+  // regrowth
+  for (const r of [...regrow]) {
+    r.in--;
+    if (r.in <= 0 && map[r.y][r.x] === "land") {
+      map[r.y][r.x] = r.type;
+      regrow.splice(regrow.indexOf(r), 1);
+    }
+  }
+
+  render();
+}
+
+function pick(arr) { return arr[rnd(arr.length)]; }
+
+function die(reason, face) {
+  over = true;
+  const best = Math.max(day, +(localStorage.getItem("wildlife-best-" + player.species) || 0));
+  localStorage.setItem("wildlife-best-" + player.species, best);
+  document.getElementById("overFace").textContent = face;
+  document.getElementById("overTitle").textContent = reason;
+  document.getElementById("overText").textContent =
+    `Your ${player.name.toLowerCase()} survived ${day} day${day === 1 ? "" : "s"}. Best as ${player.name.toLowerCase()}: ${best} days.`;
+  document.getElementById("overlay").style.display = "flex";
+}
+
+function addLog(msg) {
+  log.unshift(msg);
+  if (log.length > 5) log.pop();
+}
+
+// ------------------------------------------------------------------ render
+const boardEl = document.getElementById("board");
+boardEl.style.gridTemplateColumns = `repeat(${W}, 1fr)`;
+const cells = [];
+for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+  const div = document.createElement("div");
+  div.className = "cell";
+  boardEl.appendChild(div);
+  cells.push(div);
+}
+
+function render() {
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const cell = cells[y * W + x];
+    const tile = map[y][x];
+    cell.className = "cell" + (tile === "water" ? " water" : "");
+    cell.textContent = TILE_EMOJI[tile];
+  }
+  for (const c of critters) {
+    const cell = cells[c.y * W + c.x];
+    cell.textContent = WILDLIFE[c.type].emoji;
+  }
+  const pc = cells[player.y * W + player.x];
+  pc.textContent = player.emoji;
+  pc.classList.add("player");
+
+  boardEl.classList.toggle("night", isNight());
+  document.getElementById("phase").textContent = isNight() ? "🌙 Night" : "☀️ Day";
+  document.getElementById("dayNum").textContent = day;
+
+  setMeter("health", player.health, player.maxHealth);
+  setMeter("food", player.food, 100);
+  setMeter("water", player.water, 100);
+  setMeter("energy", player.energy, 100);
+
+  document.getElementById("log").innerHTML =
+    log.map((m, i) => `<div class="${i === 0 ? "latest" : ""}">${m}</div>`).join("");
+}
+
+function setMeter(id, val, max) {
+  document.getElementById(id + "Fill").style.width = Math.max(0, (val / max) * 100) + "%";
+  document.getElementById(id + "Val").textContent = Math.ceil(Math.max(0, val));
+}
+
+// ------------------------------------------------------------------ picker UI
+const pickerEl = document.getElementById("picker");
+for (const [key, a] of Object.entries(ANIMALS)) {
+  const best = localStorage.getItem("wildlife-best-" + key);
+  const btn = document.createElement("button");
+  btn.className = "animal-card";
+  btn.innerHTML = `
+    <div class="face">${a.emoji}</div>
+    <h2>${a.name}${best ? ` <small style="color:var(--dim);font-weight:400">· best ${best}d</small>` : ""}</h2>
+    <p>${a.desc}</p>
+    <div class="statbars">
+      <div class="row"><span>Speed</span><div class="track"><div class="fill" style="width:${a.speed * 10}%"></div></div></div>
+      <div class="row"><span>Strength</span><div class="track"><div class="fill" style="width:${(a.attack / 30) * 100}%"></div></div></div>
+      <div class="row"><span>Stealth</span><div class="track"><div class="fill" style="width:${a.cover * 100}%"></div></div></div>
+      <div class="row"><span>Appetite</span><div class="track"><div class="fill" style="width:${(a.hungerRate / 1.8) * 100}%;background:var(--warn)"></div></div></div>
+    </div>`;
+  btn.onclick = () => startGame(key);
+  pickerEl.appendChild(btn);
+}
+
+// ------------------------------------------------------------------ input
+document.addEventListener("keydown", e => {
+  if (!player || over) return;
+  const k = e.key.toLowerCase();
+  const dirs = { arrowup:[0,-1], w:[0,-1], arrowdown:[0,1], s:[0,1], arrowleft:[-1,0], a:[-1,0], arrowright:[1,0], d:[1,0] };
+  if (dirs[k]) { e.preventDefault(); playerMove(...dirs[k]); }
+  else if (k === " ") { e.preventDefault(); rest(); }
+  else if (k === "e") { e.preventDefault(); tryEat(); }
+});
+document.querySelectorAll("#dpad button[data-dir]").forEach(b => {
+  b.addEventListener("click", () => playerMove(...b.dataset.dir.split(",").map(Number)));
+});
+document.getElementById("restBtn").addEventListener("click", rest);
+document.getElementById("eatBtn").addEventListener("click", tryEat);
+</script>
+</body>
+</html>
