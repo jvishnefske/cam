@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Outside: Forest Server</title>
 <style>
   :root {
@@ -25,31 +25,54 @@
     display: flex;
     justify-content: center;
     padding: 12px;
+    /* kill the double-tap-to-zoom delay without disabling pinch zoom */
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
   }
   #app { width: 100%; max-width: 760px; }
-  h1 { font-size: 1.4rem; margin-bottom: 4px; }
+  body {
+    background:
+      radial-gradient(1100px 500px at 85% -10%, rgba(110,231,160,.07), transparent 60%),
+      radial-gradient(900px 600px at -10% 110%, rgba(96,165,250,.06), transparent 60%),
+      var(--bg);
+  }
+  h1 {
+    font-size: 1.4rem; margin-bottom: 4px; letter-spacing: .02em;
+    background: linear-gradient(90deg, var(--text), var(--accent));
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  }
   .sub { color: var(--dim); font-size: 0.9rem; margin-bottom: 16px; }
-  #langbar { display: flex; gap: 6px; margin: 6px 0 12px; }
+  #langbar { display: flex; gap: 6px; margin: 6px 0 12px; user-select: none; }
+  body.playing #langbar { display: none; } /* language is chosen on the start menu only */
   #langbar button {
     background: var(--panel2); border: none; color: var(--dim); border-radius: 8px;
     padding: 4px 10px; font-size: 0.72rem; font-weight: 700; letter-spacing: .06em; cursor: pointer;
   }
   #langbar button.active { background: var(--accent); color: #10151c; }
+  @media (pointer: coarse) {
+    #langbar button { padding: 12px 16px; font-size: 0.8rem; }
+  }
 
   /* ---- animal picker ---- */
   #picker { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
   .animal-card {
-    background: var(--panel);
-    border: 2px solid transparent;
+    background: linear-gradient(160deg, var(--panel), #151d27);
+    border: 2px solid rgba(255,255,255,.04);
     border-radius: 12px;
     padding: 14px;
     cursor: pointer;
     text-align: left;
     color: var(--text);
     font: inherit;
-    transition: border-color .15s, transform .1s;
+    transition: border-color .15s, transform .1s, box-shadow .15s;
+    animation: cardIn .4s ease-out backwards;
   }
-  .animal-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+  .animal-card { animation-delay: calc(var(--i, 0) * 35ms); }
+  @keyframes cardIn { from { opacity: 0; transform: translateY(10px); } }
+  .animal-card:hover {
+    border-color: var(--accent); transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(110,231,160,.12);
+  }
   .animal-card .cardtop { display: flex; align-items: flex-start; justify-content: space-between; }
   .animal-card .face { font-size: 2.2rem; }
   .animal-card h2 { font-size: 1.05rem; margin: 6px 0 2px; }
@@ -78,18 +101,23 @@
 
   /* ---- game screen ---- */
   #game { display: none; }
+  #game.active { display: block; }
   #hud {
     display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
     margin-bottom: 10px;
   }
-  .meter { background: var(--panel); border-radius: 10px; padding: 8px 10px; }
+  .meter { background: var(--panel); border-radius: 10px; padding: 8px 10px; min-width: 0; }
+  /* narrow phones: 2x2 meters so long labels (HIDRATACIÓN…) can't force sideways scroll */
+  @media (max-width: 430px) {
+    #hud { grid-template-columns: 1fr 1fr; }
+  }
   .meter label { font-size: 0.68rem; color: var(--dim); text-transform: uppercase; letter-spacing: .05em; display: flex; justify-content: space-between; }
   .meter .track { height: 8px; background: #0c1117; border-radius: 4px; margin-top: 5px; overflow: hidden; }
   .meter .fill { height: 100%; border-radius: 4px; transition: width .25s; }
-  #healthFill { background: var(--danger); }
-  #foodFill   { background: var(--warn); }
-  #waterFill  { background: var(--water); }
-  #energyFill { background: var(--accent); }
+  #healthFill { background: linear-gradient(90deg, #c94f4f, var(--danger)); }
+  #foodFill   { background: linear-gradient(90deg, #d19a1f, var(--warn)); }
+  #waterFill  { background: linear-gradient(90deg, #3f7fd6, var(--water)); }
+  #energyFill { background: linear-gradient(90deg, #47c07e, var(--accent)); }
 
   #topline { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 0.9rem; }
   #topline .day { font-weight: 600; }
@@ -98,25 +126,54 @@
   #board {
     display: grid;
     gap: 1px;
-    background: #000;
+    background: #0a0f14;
     border-radius: 10px;
     padding: 4px;
     user-select: none;
-    touch-action: manipulation;
-    transition: filter .6s;
+    touch-action: none; /* the board handles its own swipe gestures */
+    transition: filter 1.2s;
+    box-shadow: 0 10px 30px rgba(0,0,0,.45), inset 0 0 0 1px rgba(255,255,255,.04);
   }
-  #board.night { filter: brightness(0.55) saturate(0.7) hue-rotate(-15deg); }
+  #board.dusk  { filter: brightness(0.82) sepia(0.25) hue-rotate(-18deg) saturate(1.1); }
+  #board.night { filter: brightness(0.5) saturate(0.65) hue-rotate(-20deg); }
+  #board.shake { animation: shake .35s; }
+  @keyframes shake {
+    20% { transform: translate(-4px, 1px); } 40% { transform: translate(4px, -1px); }
+    60% { transform: translate(-3px, -1px); } 80% { transform: translate(2px, 1px); }
+  }
   .cell {
     aspect-ratio: 1;
     display: flex; align-items: center; justify-content: center;
-    font-size: clamp(14px, 3.4vw, 26px);
-    background: #223425;
+    font-size: clamp(14px, 4.2vw, 26px);
     border-radius: 3px;
     line-height: 1;
     overflow: hidden;
+    text-shadow: 0 2px 3px rgba(0,0,0,.4);
   }
-  .cell.water { background: #1b3a5c; }
-  .cell.player { outline: 2px solid var(--accent); outline-offset: -2px; }
+  /* terrain palettes with subtle per-tile variation */
+  .cell.t0 { background: linear-gradient(135deg, #24371f, #1e2f1b); }
+  .cell.t1 { background: linear-gradient(135deg, #273b22, #223420); }
+  .cell.t2 { background: linear-gradient(135deg, #223223, #1c2b1d); }
+  .cell.tree.t0 { background: linear-gradient(135deg, #1d2f1c, #172616); }
+  .cell.tree.t1 { background: linear-gradient(135deg, #1f3320, #182818); }
+  .cell.tree.t2 { background: linear-gradient(135deg, #1b2c1e, #152314); }
+  .cell.grassy { background: linear-gradient(135deg, #2c421f, #26391e); }
+  .cell.den { background: radial-gradient(circle at 50% 55%, #2a2119, #201a14); }
+  .cell.rock { background: linear-gradient(135deg, #2b2f33, #22262a); }
+  .cell.water {
+    background: linear-gradient(120deg, #1c3f66 25%, #235081 50%, #1c3f66 75%);
+    background-size: 300% 300%;
+    animation: waterFlow 5s ease-in-out infinite;
+  }
+  @keyframes waterFlow { 0%,100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
+  .cell.player {
+    outline: 2px solid var(--accent); outline-offset: -2px;
+    animation: playerPulse 1.8s ease-in-out infinite;
+  }
+  @keyframes playerPulse {
+    0%, 100% { box-shadow: 0 0 4px 1px rgba(110,231,160,.35); }
+    50% { box-shadow: 0 0 12px 3px rgba(110,231,160,.6); }
+  }
 
   #log {
     background: var(--panel);
@@ -130,23 +187,77 @@
   }
   #log .latest { color: var(--text); }
 
-  #controls { display: flex; gap: 16px; align-items: center; justify-content: center; margin-top: 12px; flex-wrap: wrap; }
-  #dpad { display: grid; grid-template-columns: repeat(3, 52px); grid-template-rows: repeat(3, 52px); gap: 4px; }
-  #dpad button, .actbtn {
-    background: var(--panel2); color: var(--text); border: none; border-radius: 10px;
-    font-size: 1.1rem; cursor: pointer;
+  #controls { display: flex; gap: 18px; align-items: center; justify-content: center; margin-top: 12px; flex-wrap: wrap; user-select: none; }
+  #joy {
+    width: 148px; height: 148px; border-radius: 50%;
+    background: radial-gradient(circle at 50% 42%, #26303e, #161d26 70%);
+    box-shadow: inset 0 3px 10px rgba(0,0,0,.55), 0 1px 0 rgba(255,255,255,.05);
+    position: relative; touch-action: none; cursor: grab; flex: none;
   }
-  #dpad button:active, .actbtn:active { background: #2f3f52; }
-  .actbtn { padding: 0 18px; height: 52px; font-size: 0.9rem; }
+  #joyKnob {
+    width: 62px; height: 62px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #45597a, #2b3a4e);
+    border: 2px solid rgba(110,231,160,.35);
+    box-shadow: 0 4px 10px rgba(0,0,0,.5);
+    position: absolute; left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.5rem; pointer-events: none;
+    transition: transform .12s ease-out;
+  }
+  #joy.dragging #joyKnob { transition: none; }
+  #actcol { display: flex; flex-direction: column; gap: 10px; }
+  .actbtn {
+    background: var(--panel2); color: var(--text); border: none; border-radius: 12px;
+    font-size: 0.95rem; cursor: pointer; padding: 0 20px; height: 56px; min-width: 120px;
+    box-shadow: 0 2px 0 rgba(0,0,0,.35);
+  }
+  .actbtn:active { background: #2f3f52; transform: translateY(1px); box-shadow: none; }
   #hint { text-align: center; color: var(--dim); font-size: 0.75rem; margin-top: 10px; }
+
+  /* ---- compact landscape (phones on their side): board left, controls right ---- */
+  @media (orientation: landscape) and (max-height: 540px) {
+    #game.active {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      grid-template-areas: "board top" "board hud" "board log" "board controls";
+      align-content: start;
+      column-gap: 14px;
+      row-gap: 8px;
+    }
+    #topline { grid-area: top; margin-bottom: 0; }
+    #hud { grid-area: hud; grid-template-columns: 1fr 1fr; margin-bottom: 0; }
+    #board {
+      grid-area: board;
+      align-self: start;
+      width: calc((100vh - 60px) * 1.33);
+      width: calc((100dvh - 60px) * 1.33);
+      max-width: 56vw;
+    }
+    #log { grid-area: log; min-height: 0; max-height: 22vh; overflow-y: auto; margin-top: 0; }
+    #controls { grid-area: controls; margin-top: 0; }
+    #joy { width: 116px; height: 116px; }
+    #joyKnob { width: 50px; height: 50px; font-size: 1.2rem; }
+    .actbtn { height: 46px; min-width: 100px; }
+    #hint { display: none; }
+  }
+  @media (orientation: landscape) and (max-height: 540px) {
+    body.playing { padding: 8px; }
+    body.playing h1 { display: none; } /* reclaim vertical space while playing */
+  }
 
   /* ---- game over ---- */
   #overlay {
     position: fixed; inset: 0; background: rgba(8, 11, 15, 0.86);
     display: none; align-items: center; justify-content: center; z-index: 10;
   }
+  #overlay { backdrop-filter: blur(4px); }
   #overlay .box {
-    background: var(--panel); border-radius: 14px; padding: 28px 32px; text-align: center; max-width: 340px;
+    background: linear-gradient(160deg, var(--panel), #141b24);
+    border: 1px solid rgba(255,255,255,.06);
+    border-radius: 14px; padding: 28px 32px; text-align: center; max-width: 340px;
+    box-shadow: 0 20px 50px rgba(0,0,0,.5);
+    animation: cardIn .3s ease-out;
   }
   #overlay .face { font-size: 3rem; }
   #overlay h2 { margin: 10px 0 6px; }
@@ -180,12 +291,11 @@
     <div id="board"></div>
     <div id="log"></div>
     <div id="controls">
-      <div id="dpad">
-        <span></span><button data-dir="0,-1" aria-label="Up">⬆️</button><span></span>
-        <button data-dir="-1,0" aria-label="Left">⬅️</button><button id="restBtn" title="Rest">💤</button><button data-dir="1,0" aria-label="Right">➡️</button>
-        <span></span><button data-dir="0,1" aria-label="Down">⬇️</button><span></span>
+      <div id="joy" aria-label="Joystick"><div id="joyKnob">🕹️</div></div>
+      <div id="actcol">
+        <button class="actbtn" id="restBtn" title="Rest">💤</button>
+        <button class="actbtn" id="eatBtn" data-i18n="eatBtn">🍽️ Eat / Fish</button>
       </div>
-      <button class="actbtn" id="eatBtn" data-i18n="eatBtn">🍽️ Eat / Fish</button>
     </div>
     <p id="hint" data-i18n="hint">Move: arrows / WASD · Rest: Space · Eat or fish: E · Walk into prey to hunt it. Standing next to water drinks automatically. Trees &amp; tall grass hide small animals.</p>
   </div>
@@ -208,26 +318,60 @@ const W = 16, H = 12;
 const TURNS_PER_DAY = 30;
 const NIGHT_START = 21;           // turn-of-day when night falls
 
-// Sizes: 1 mouse … 6 bear. Predators hunt anything at or below their "hunts" size.
+// Sizes: 1 mouse … 6 bison. Predators hunt anything at or below their "hunts" size.
+// preds: wildlife that hunts this build. preySp: wildlife that spawns as ambient prey.
+// traits: swim (water passable), fly (water+rock passable), climb (top stealth on trees),
+// nocturnal (stealth bonus at night), spikes (attackers take damage), shell (damage
+// reduction), spray (predator attacks often abort), rockwalk (rock passable).
 const ANIMALS = {
-  mouse:  { emoji:"🐭", size:1, speed:5, maxHealth:40,  hungerRate:0.8, thirstRate:1.0,
-            diet:["grass","berry"], hunts:0, canFish:false, cover:0.85, attack:2,
-            tier:"D", stats:{ INT:4, PWR:1, DEF:1, MBL:5, HP:1, STL:9 } },
-  rabbit: { emoji:"🐰", size:2, speed:8, maxHealth:55,  hungerRate:1.0, thirstRate:1.1,
-            diet:["grass","berry"], hunts:0, canFish:false, cover:0.6, attack:4,
-            tier:"C", stats:{ INT:3, PWR:2, DEF:2, MBL:9, HP:3, STL:6 } },
-  fox:    { emoji:"🦊", size:3, speed:7, maxHealth:70,  hungerRate:1.1, thirstRate:1.1,
-            diet:["berry"], hunts:2, canFish:false, cover:0.4, attack:14,
-            tier:"B", stats:{ INT:8, PWR:5, DEF:4, MBL:7, HP:4, STL:7 } },
-  deer:   { emoji:"🦌", size:4, speed:8, maxHealth:90,  hungerRate:1.3, thirstRate:1.3,
-            diet:["grass","berry"], hunts:0, canFish:false, cover:0.25, attack:10,
-            tier:"C", stats:{ INT:3, PWR:5, DEF:5, MBL:9, HP:6, STL:3 } },
-  wolf:   { emoji:"🐺", size:5, speed:7, maxHealth:100, hungerRate:1.5, thirstRate:1.2,
-            diet:[], hunts:4, canFish:false, cover:0.15, attack:22,
-            tier:"A", stats:{ INT:7, PWR:8, DEF:6, MBL:7, HP:7, STL:4 } },
-  bear:   { emoji:"🐻", size:6, speed:5, maxHealth:130, hungerRate:1.8, thirstRate:1.2,
-            diet:["berry"], hunts:4, canFish:true, cover:0.1, attack:30,
-            tier:"S", stats:{ INT:6, PWR:10, DEF:9, MBL:4, HP:10, STL:1 } },
+  mouse:    { emoji:"🐭", size:1, speed:5, maxHealth:40,  hungerRate:0.8,  thirstRate:1.0, diet:["grass","berry"], hunts:0, canFish:false, cover:0.85, attack:2,  traits:[],
+              preds:["hawk","fox","wolf"], preySp:["rabbit","deer"],   tier:"D", stats:{ INT:4, PWR:1,  DEF:1,  MBL:5,  HP:1,  STL:9 } },
+  rabbit:   { emoji:"🐰", size:2, speed:8, maxHealth:55,  hungerRate:1.0,  thirstRate:1.1, diet:["grass","berry"], hunts:0, canFish:false, cover:0.6,  attack:4,  traits:[],
+              preds:["hawk","fox","wolf"], preySp:["mouse","deer"],    tier:"C", stats:{ INT:3, PWR:2,  DEF:2,  MBL:9,  HP:3,  STL:6 } },
+  fox:      { emoji:"🦊", size:3, speed:7, maxHealth:70,  hungerRate:1.1,  thirstRate:1.1, diet:["berry"],         hunts:2, canFish:false, cover:0.4,  attack:14, traits:[],
+              preds:["wolf"],              preySp:["mouse","rabbit","deer"], tier:"B", stats:{ INT:8, PWR:5, DEF:4, MBL:7, HP:4, STL:7 } },
+  deer:     { emoji:"🦌", size:4, speed:8, maxHealth:90,  hungerRate:1.3,  thirstRate:1.3, diet:["grass","berry"], hunts:0, canFish:false, cover:0.25, attack:10, traits:[],
+              preds:["wolf"],              preySp:["mouse","rabbit"], tier:"C", stats:{ INT:3, PWR:5,  DEF:5,  MBL:9,  HP:6,  STL:3 } },
+  wolf:     { emoji:"🐺", size:5, speed:7, maxHealth:100, hungerRate:1.5,  thirstRate:1.2, diet:[],                hunts:4, canFish:false, cover:0.15, attack:22, traits:[],
+              preds:["rival"],             preySp:["mouse","rabbit","deer"], tier:"A", stats:{ INT:7, PWR:8, DEF:6, MBL:7, HP:7, STL:4 } },
+  bear:     { emoji:"🐻", size:6, speed:5, maxHealth:130, hungerRate:1.8,  thirstRate:1.2, diet:["berry"],         hunts:4, canFish:true,  cover:0.1,  attack:30, traits:[],
+              preds:[],                    preySp:["mouse","rabbit","deer","wolf"], tier:"S", stats:{ INT:6, PWR:10, DEF:9, MBL:4, HP:10, STL:1 } },
+  hawk:     { emoji:"🦅", size:2, speed:9, maxHealth:50,  hungerRate:1.0,  thirstRate:0.9, diet:[],                hunts:2, canFish:true,  cover:0.3,  attack:16, traits:["fly"],
+              preds:[],                    preySp:["mouse","rabbit"], tier:"A", stats:{ INT:6, PWR:5,  DEF:3,  MBL:10, HP:4,  STL:5 } },
+  owl:      { emoji:"🦉", size:2, speed:7, maxHealth:45,  hungerRate:0.9,  thirstRate:0.9, diet:[],                hunts:1, canFish:false, cover:0.6,  attack:14, traits:["fly","nocturnal"],
+              preds:["hawk"],              preySp:["mouse"],          tier:"B", stats:{ INT:7, PWR:4,  DEF:3,  MBL:8,  HP:4,  STL:8 } },
+  boar:     { emoji:"🐗", size:4, speed:6, maxHealth:110, hungerRate:1.5,  thirstRate:1.2, diet:["grass","berry"], hunts:1, canFish:false, cover:0.2,  attack:24, traits:[],
+              preds:["wolf"],              preySp:["mouse","rabbit"], tier:"A", stats:{ INT:4, PWR:8,  DEF:7,  MBL:5,  HP:8,  STL:2 } },
+  badger:   { emoji:"🦡", size:3, speed:5, maxHealth:75,  hungerRate:1.1,  thirstRate:1.0, diet:["berry"],         hunts:1, canFish:false, cover:0.5,  attack:20, traits:[],
+              preds:["wolf"],              preySp:["mouse"],          tier:"B", stats:{ INT:5, PWR:7,  DEF:6,  MBL:4,  HP:5,  STL:5 } },
+  squirrel: { emoji:"🐿️", size:1, speed:7, maxHealth:35,  hungerRate:0.8,  thirstRate:0.9, diet:["berry","grass"], hunts:0, canFish:false, cover:0.7,  attack:2,  traits:["climb"],
+              preds:["hawk","fox"],        preySp:["mouse","rabbit"], tier:"C", stats:{ INT:5, PWR:1,  DEF:1,  MBL:8,  HP:2,  STL:8 } },
+  beaver:   { emoji:"🦫", size:3, speed:4, maxHealth:70,  hungerRate:1.1,  thirstRate:0.8, diet:["grass"],         hunts:0, canFish:false, cover:0.3,  attack:10, traits:["swim"],
+              preds:["wolf"],              preySp:["rabbit"],         tier:"C", stats:{ INT:7, PWR:4,  DEF:4,  MBL:4,  HP:5,  STL:3 } },
+  duck:     { emoji:"🦆", size:2, speed:6, maxHealth:40,  hungerRate:0.9,  thirstRate:0.7, diet:["grass"],         hunts:0, canFish:true,  cover:0.3,  attack:3,  traits:["swim"],
+              preds:["fox","hawk"],        preySp:["mouse"],          tier:"C", stats:{ INT:4, PWR:2,  DEF:2,  MBL:7,  HP:3,  STL:4 } },
+  frog:     { emoji:"🐸", size:1, speed:5, maxHealth:25,  hungerRate:0.6,  thirstRate:1.5, diet:["grass"],         hunts:0, canFish:false, cover:0.7,  attack:1,  traits:["swim"],
+              preds:["hawk","fox"],        preySp:[],                 tier:"D", stats:{ INT:2, PWR:1,  DEF:1,  MBL:6,  HP:1,  STL:8 } },
+  hedgehog: { emoji:"🦔", size:2, speed:3, maxHealth:50,  hungerRate:0.9,  thirstRate:0.9, diet:["berry","grass"], hunts:0, canFish:false, cover:0.5,  attack:6,  traits:["spikes"],
+              preds:["fox","wolf"],        preySp:["mouse"],          tier:"C", stats:{ INT:4, PWR:3,  DEF:8,  MBL:2,  HP:4,  STL:5 } },
+  snake:    { emoji:"🐍", size:2, speed:5, maxHealth:55,  hungerRate:0.55, thirstRate:0.8, diet:[],                hunts:2, canFish:false, cover:0.75, attack:20, traits:[],
+              preds:["hawk"],              preySp:["mouse","rabbit"], tier:"B", stats:{ INT:3, PWR:7,  DEF:4,  MBL:4,  HP:4,  STL:9 } },
+  raccoon:  { emoji:"🦝", size:3, speed:6, maxHealth:65,  hungerRate:1.0,  thirstRate:1.0, diet:["berry"],         hunts:1, canFish:true,  cover:0.6,  attack:12, traits:["nocturnal"],
+              preds:["wolf"],              preySp:["mouse"],          tier:"B", stats:{ INT:9, PWR:4,  DEF:4,  MBL:6,  HP:5,  STL:6 } },
+  turtle:   { emoji:"🐢", size:2, speed:2, maxHealth:60,  hungerRate:0.5,  thirstRate:0.6, diet:["grass"],         hunts:0, canFish:false, cover:0.4,  attack:4,  traits:["swim","shell"],
+              preds:["fox"],               preySp:["mouse"],          tier:"C", stats:{ INT:3, PWR:2,  DEF:10, MBL:1,  HP:5,  STL:4 } },
+  skunk:    { emoji:"🦨", size:2, speed:5, maxHealth:55,  hungerRate:1.0,  thirstRate:1.0, diet:["berry","grass"], hunts:1, canFish:false, cover:0.4,  attack:8,  traits:["spray"],
+              preds:["hawk"],              preySp:["mouse"],          tier:"B", stats:{ INT:5, PWR:3,  DEF:7,  MBL:4,  HP:4,  STL:5 } },
+  turkey:   { emoji:"🦃", size:3, speed:6, maxHealth:55,  hungerRate:1.1,  thirstRate:1.0, diet:["grass","berry"], hunts:0, canFish:false, cover:0.3,  attack:6,  traits:[],
+              preds:["fox","wolf"],        preySp:["mouse"],          tier:"D", stats:{ INT:2, PWR:3,  DEF:3,  MBL:6,  HP:4,  STL:3 } },
+  goat:     { emoji:"🐐", size:3, speed:7, maxHealth:80,  hungerRate:1.2,  thirstRate:1.1, diet:["grass"],         hunts:0, canFish:false, cover:0.2,  attack:12, traits:["rockwalk"],
+              preds:["wolf"],              preySp:["rabbit"],         tier:"C", stats:{ INT:4, PWR:5,  DEF:5,  MBL:8,  HP:6,  STL:2 } },
+  bison:    { emoji:"🦬", size:6, speed:6, maxHealth:150, hungerRate:2.0,  thirstRate:1.4, diet:["grass"],         hunts:0, canFish:false, cover:0.05, attack:28, traits:[],
+              preds:[],                    preySp:["deer"],           tier:"S", stats:{ INT:3, PWR:9,  DEF:9,  MBL:5,  HP:10, STL:1 } },
+  moose:    { emoji:"🫎", size:6, speed:7, maxHealth:130, hungerRate:1.9,  thirstRate:1.3, diet:["grass"],         hunts:0, canFish:false, cover:0.1,  attack:26, traits:["swim"],
+              preds:["wolf"],              preySp:["deer"],           tier:"A", stats:{ INT:4, PWR:8,  DEF:8,  MBL:6,  HP:9,  STL:2 } },
+  croc:     { emoji:"🐊", size:5, speed:3, maxHealth:120, hungerRate:0.7,  thirstRate:0.5, diet:[],                hunts:4, canFish:true,  cover:0.6,  attack:35, traits:["swim"],
+              preds:[],                    preySp:["deer","rabbit"],  tier:"A", stats:{ INT:2, PWR:10, DEF:8,  MBL:3,  HP:8,  STL:7 } },
 };
 
 // Wildlife that can roam the map.
@@ -254,6 +398,7 @@ const T = {
     hp:"❤️ HP", hunger:"🍖 Hunger", hydration:"💧 Hydration", stamina:"⚡ Stamina",
     eatBtn:"🍽️ Eat / Fish", requeue:"🔁 Requeue",
     hint:"Move: arrows / WASD · Rest: Space · Eat or fish: E · Walk into prey to hunt it. Standing next to water drinks automatically. Trees & tall grass hide small animals.",
+    hintTouch:"Swipe the map or use the joystick to move (hold to keep moving) · 💤 rest · 🍽️ eat or fish · Walk into prey to hunt it. Standing next to water drinks automatically. Trees & tall grass hide small animals.",
     bestRun:"· best run {d}d", tierTag:"{tier}-tier",
     dayWord1:"day", dayWordN:"days",
     start:"Queued into the forest server as {animal}. glhf!",
@@ -280,7 +425,26 @@ const T = {
       deer:{ name:"Deer", meta:"Tanky grazer", desc:"Respectable HP pool, top-tier mobility, and a grazing economy that never runs out of food sources. Unfortunately the upkeep costs are brutal, the stealth stat is a meme at this hitbox size, and wolf mains have you on farm status." },
       wolf:{ name:"Wolf", meta:"High skill ceiling", desc:"The forest's premier carnivore build — favorable matchups into the entire prey roster. The devs balanced it with a meat-only diet and a punishing hunger bar: whiff a few hunts in a row and you starve out. Watch for territorial rival mains." },
       bear:{ name:"Bear", meta:"Currently dominating the meta", desc:"No natural counters anywhere on this server — maxed PWR, DEF, and HP make every fight a stat check you win. To keep it from being completely broken, the devs gave it an absurd hunger stat. Abuse the exclusive fishing ability and berry economy." },
+      hawk:{ name:"Hawk", meta:"Mobility abuser", desc:"Flight is still the most broken movement tech in the game: ignore terrain, dive small prey, fear nothing. Just keep that hunger bar fed." },
+      owl:{ name:"Owl", meta:"Nocturnal one-trick", desc:"The night-shift hawk. Silent flight plus darkness stealth makes you nearly invisible after dusk — daytime queues are a throw." },
+      boar:{ name:"Boar", meta:"Berserker economy", desc:"Aggressive tank with an eat-everything economy. Wolves technically counter you; most regret queueing into the tusk damage." },
+      badger:{ name:"Badger", meta:"Pound-for-pound menace", desc:"Modest HP bar, absurd damage for the size class. The definitive 'do not touch' build — it fights way above its weight." },
+      squirrel:{ name:"Squirrel", meta:"Parkour build", desc:"The tree-climb passive turns every forest tile into a safe zone. Farm berries, juke hawks, live rent-free." },
+      beaver:{ name:"Beaver", meta:"Semi-aquatic tech", desc:"Amphibious engineer with water access most builds can't touch, plus a solid grazing economy. Land mobility is rough." },
+      duck:{ name:"Duck", meta:"Balanced… technically", desc:"Swims, grazes, snacks on fish — jack of all trades, master of none. Every stat is mid and two predators know it." },
+      frog:{ name:"Frog", meta:"Do not pick first", desc:"A 1-point HP pool, a thirst bar that drains fast away from water, and half the server on your matchup list. Stealth mains only." },
+      hedgehog:{ name:"Hedgehog", meta:"Thorns passive", desc:"The devs shipped full-body spikes: attackers pay for every single hit while you waddle on. The mobility stat is a joke." },
+      snake:{ name:"Snake", meta:"Ambush assassin", desc:"Ectotherm metabolism — you barely need to eat. Camp the tall grass and delete rodents with venom burst damage." },
+      raccoon:{ name:"Raccoon", meta:"INT scaling", desc:"Highest INT-per-size on the roster. Omnivore economy, dexterous hands, night-shift bonus — a flexible, forgiving pick." },
+      turtle:{ name:"Turtle", meta:"Stall comp", desc:"The shell reduces every incoming hit to chip damage. Nothing kills you quickly; nothing about you is quick either." },
+      skunk:{ name:"Skunk", meta:"Zoning tool", desc:"A chemical deterrent aura most predators refuse to challenge. Abuse the free disengage and forage in peace." },
+      turkey:{ name:"Turkey", meta:"Meme pick", desc:"Big body, loud callouts, no game plan. Somehow still on the roster every autumn patch. Play it for content." },
+      goat:{ name:"Goat", meta:"Terrain cheese", desc:"The sure-footed passive unlocks rock tiles nobody else can path onto. High ground is free real estate." },
+      bison:{ name:"Bison", meta:"Raid boss", desc:"A raid boss that eats grass. Maxed bulk, zero predators willing to queue into you — the grazing S-tier. Upkeep is enormous." },
+      moose:{ name:"Moose", meta:"Bruiser royalty", desc:"Massive HP pool, deceptive speed, and water access. A wolf needs a full premade to even attempt this fight." },
+      croc:{ name:"Crocodile", meta:"Legacy S-tier design", desc:"A living stat check that has stayed meta for 200 million years. Land mobility is trash — hold the water and let prey come to you." },
     },
+    traitNames:{ swim:"swims", fly:"flies over terrain", climb:"climbs trees", nocturnal:"night vision", spikes:"spines hurt attackers", shell:"armored shell", spray:"repels predators", rockwalk:"climbs rocks" },
   },
   es: {
     sub:"Selección de personaje · El meta actual del bosque, clasificado. Elige un build y a ver cuántos días aguantas antes de que te hagan el outplay.",
@@ -288,6 +452,7 @@ const T = {
     hp:"❤️ HP", hunger:"🍖 Hambre", hydration:"💧 Hidratación", stamina:"⚡ Energía",
     eatBtn:"🍽️ Comer / Pescar", requeue:"🔁 Otra partida",
     hint:"Mover: flechas / WASD · Descansar: Espacio · Comer o pescar: E · Camina hacia una presa para cazarla. Junto al agua bebes automáticamente. Los árboles y la hierba alta esconden a los animales pequeños.",
+    hintTouch:"Desliza el dedo por el mapa o usa el joystick para moverte (mantén pulsado para seguir andando) · 💤 descansar · 🍽️ comer o pescar · Camina hacia una presa para cazarla. Junto al agua bebes automáticamente. Los árboles y la hierba alta esconden a los animales pequeños.",
     bestRun:"· mejor run {d}d", tierTag:"tier {tier}",
     dayWord1:"día", dayWordN:"días",
     start:"Entras al servidor del bosque como {animal}. ¡glhf!",
@@ -314,7 +479,26 @@ const T = {
       deer:{ name:"Ciervo", meta:"Herbívoro tanque", desc:"Buena reserva de HP, movilidad top y una economía de pasto que nunca se agota. Por desgracia el mantenimiento es brutal, el stat de sigilo es un meme con esta hitbox y los mains de lobo te tienen en modo granja." },
       wolf:{ name:"Lobo", meta:"Techo de habilidad alto", desc:"El build carnívoro estrella del bosque — matchups favorables contra toda la plantilla de presas. Los devs lo balancearon con dieta solo de carne y una barra de hambre castigadora: falla unas cuantas cacerías seguidas y mueres de hambre. Ojo con los mains rivales territoriales." },
       bear:{ name:"Oso", meta:"Dominando el meta actual", desc:"Sin counters naturales en todo el servidor — PWR, DEF y HP al máximo convierten cada pelea en un stat check que ganas. Para que no fuera totalmente roto, los devs le pusieron un stat de hambre absurdo. Abusa de la habilidad exclusiva de pesca y de la economía de bayas." },
+      hawk:{ name:"Halcón", meta:"Abusador de movilidad", desc:"Volar sigue siendo la mecánica de movimiento más rota del juego: ignora el terreno, lánzate sobre presas pequeñas y no temas a nada. Solo mantén llena la barra de hambre." },
+      owl:{ name:"Búho", meta:"One-trick nocturno", desc:"El halcón del turno de noche. Vuelo silencioso y sigilo en la oscuridad te hacen casi invisible tras el anochecer — jugar de día es regalar la partida." },
+      boar:{ name:"Jabalí", meta:"Economía berserker", desc:"Tanque agresivo que come de todo. Los lobos en teoría te counterean; la mayoría se arrepiente al probar el daño de los colmillos." },
+      badger:{ name:"Tejón", meta:"Amenaza libra por libra", desc:"HP modesto y un daño absurdo para su categoría de peso. El build 'no me toques' por excelencia — pelea muy por encima de su tamaño." },
+      squirrel:{ name:"Ardilla", meta:"Build parkour", desc:"La pasiva de trepar convierte cada árbol en zona segura. Farmea bayas, esquiva halcones y vive gratis." },
+      beaver:{ name:"Castor", meta:"Tecnología semiacuática", desc:"Ingeniero anfibio con acceso al agua que la mayoría de builds no puede tocar, más una buena economía de pasto. En tierra, movilidad regular." },
+      duck:{ name:"Pato", meta:"Equilibrado… en teoría", desc:"Nada, pasta y picotea peces — aprendiz de todo, maestro de nada. Todos sus stats son mediocres y dos depredadores lo saben." },
+      frog:{ name:"Rana", meta:"No lo elijas primero", desc:"1 punto de HP, una sed que se dispara lejos del agua y medio servidor en tu lista de matchups. Solo para mains del sigilo." },
+      hedgehog:{ name:"Erizo", meta:"Pasiva de espinas", desc:"Los devs le pusieron púas por todo el cuerpo: el atacante paga cada golpe mientras tú sigues a lo tuyo. Su movilidad es un chiste." },
+      snake:{ name:"Serpiente", meta:"Asesina de emboscada", desc:"Metabolismo ectotermo — casi no necesitas comer. Campea en la hierba alta y borra roedores con daño de veneno." },
+      raccoon:{ name:"Mapache", meta:"Escalado de INT", desc:"El mayor INT por tamaño de la plantilla. Economía omnívora, manos hábiles y bonus nocturno — un pick flexible y permisivo." },
+      turtle:{ name:"Tortuga", meta:"Composición de stall", desc:"El caparazón reduce cada golpe a daño mínimo. Nada te mata rápido; nada en ti es rápido tampoco." },
+      skunk:{ name:"Mofeta", meta:"Herramienta de zoneo", desc:"Un aura disuasoria química que la mayoría de depredadores no se atreve a desafiar. Abusa del disengage gratis y forrajea en paz." },
+      turkey:{ name:"Pavo", meta:"Pick meme", desc:"Cuerpo grande, mucho ruido y ningún plan. Y aun así sigue en la plantilla cada parche de otoño. Juégalo por el contenido." },
+      goat:{ name:"Cabra", meta:"Cheese de terreno", desc:"La pasiva de pie firme desbloquea las rocas que nadie más puede pisar. El terreno alto es tuyo gratis." },
+      bison:{ name:"Bisonte", meta:"Jefe de raid", desc:"Un jefe de raid que come hierba. Corpulencia al máximo y cero depredadores dispuestos a entrar a la cola contigo — el S-tier herbívoro. Mantenimiento enorme." },
+      moose:{ name:"Alce", meta:"Realeza bruiser", desc:"HP masivo, velocidad engañosa y acceso al agua. Un lobo necesita un equipo completo para siquiera intentar esta pelea." },
+      croc:{ name:"Cocodrilo", meta:"Diseño S-tier legado", desc:"Un stat check viviente que lleva 200 millones de años en el meta. En tierra su movilidad es pésima — domina el agua y deja que las presas vengan a ti." },
     },
+    traitNames:{ swim:"nada", fly:"vuela sobre el terreno", climb:"trepa árboles", nocturnal:"visión nocturna", spikes:"las púas dañan al atacante", shell:"caparazón blindado", spray:"repele depredadores", rockwalk:"trepa rocas" },
   },
   it: {
     sub:"Selezione del personaggio · Il meta attuale della foresta, in classifica. Scegli una build e vedi quanti giorni resisti prima di farti outplayare.",
@@ -322,6 +506,7 @@ const T = {
     hp:"❤️ HP", hunger:"🍖 Fame", hydration:"💧 Idratazione", stamina:"⚡ Energia",
     eatBtn:"🍽️ Mangia / Pesca", requeue:"🔁 Nuova partita",
     hint:"Movimento: frecce / WASD · Riposo: Spazio · Mangia o pesca: E · Vai addosso a una preda per cacciarla. Accanto all'acqua bevi in automatico. Alberi ed erba alta nascondono gli animali piccoli.",
+    hintTouch:"Scorri il dito sulla mappa o usa il joystick per muoverti (tieni premuto per continuare) · 💤 riposa · 🍽️ mangia o pesca · Vai addosso a una preda per cacciarla. Accanto all'acqua bevi in automatico. Alberi ed erba alta nascondono gli animali piccoli.",
     bestRun:"· miglior run {d}g", tierTag:"tier {tier}",
     dayWord1:"giorno", dayWordN:"giorni",
     start:"Entri nel server della foresta come {animal}. glhf!",
@@ -348,7 +533,26 @@ const T = {
       deer:{ name:"Cervo", meta:"Erbivoro tank", desc:"Buona riserva di HP, mobilità al top e un'economia di pascolo che non finisce mai. Purtroppo i costi di mantenimento sono brutali, la statistica di stealth è un meme con questa hitbox e i main lupo ti tengono in farm status." },
       wolf:{ name:"Lupo", meta:"Skill ceiling alto", desc:"La build carnivora di punta della foresta — matchup favorevoli contro l'intero roster delle prede. I dev l'hanno bilanciata con una dieta di sola carne e una barra della fame punitiva: sbaglia qualche caccia di fila e muori di fame. Occhio ai main rivali territoriali." },
       bear:{ name:"Orso", meta:"Domina il meta attuale", desc:"Nessun counter naturale su tutto il server — PWR, DEF e HP al massimo rendono ogni scontro uno stat check che vinci. Per non renderlo completamente broken, i dev gli hanno dato una statistica di fame assurda. Abusa dell'abilità esclusiva di pesca e dell'economia delle bacche." },
+      hawk:{ name:"Falco", meta:"Abuser di mobilità", desc:"Il volo resta la meccanica di movimento più rotta del gioco: ignora il terreno, piomba sulle prede piccole e non temere nulla. Basta tenere piena la barra della fame." },
+      owl:{ name:"Gufo", meta:"One-trick notturno", desc:"Il falco del turno di notte. Volo silenzioso e stealth nel buio ti rendono quasi invisibile dopo il tramonto — giocare di giorno è un throw." },
+      boar:{ name:"Cinghiale", meta:"Economia berserker", desc:"Tank aggressivo che mangia di tutto. I lupi in teoria ti counterano; quasi tutti si pentono di aver provato il danno delle zanne." },
+      badger:{ name:"Tasso", meta:"Minaccia libbra per libbra", desc:"HP modesti, danno assurdo per la sua categoria di peso. La build 'non toccarmi' per definizione — combatte ben oltre la sua stazza." },
+      squirrel:{ name:"Scoiattolo", meta:"Build parkour", desc:"La passiva di arrampicata trasforma ogni albero in zona sicura. Farma bacche, semina i falchi e vivi gratis." },
+      beaver:{ name:"Castoro", meta:"Tecnologia semi-acquatica", desc:"Ingegnere anfibio con un accesso all'acqua che quasi nessuna build può toccare, più una solida economia di pascolo. A terra la mobilità è dura." },
+      duck:{ name:"Anatra", meta:"Bilanciata… in teoria", desc:"Nuota, pascola, spilucca pesci — tuttofare, maestra di niente. Ogni statistica è nella media e due predatori lo sanno." },
+      frog:{ name:"Rana", meta:"Non sceglierla per prima", desc:"1 punto HP, una sete che esplode lontano dall'acqua e mezzo server nella tua lista di matchup. Solo per main dello stealth." },
+      hedgehog:{ name:"Riccio", meta:"Passiva spine", desc:"I dev hanno consegnato aculei su tutto il corpo: chi attacca paga ogni singolo colpo mentre tu tiri dritto. La mobilità è una barzelletta." },
+      snake:{ name:"Serpente", meta:"Assassino da imboscata", desc:"Metabolismo ectotermo — quasi non devi mangiare. Campera nell'erba alta e cancella i roditori con il burst di veleno." },
+      raccoon:{ name:"Procione", meta:"Scaling di INT", desc:"Il miglior INT per taglia del roster. Economia onnivora, mani abili e bonus notturno — un pick flessibile e permissivo." },
+      turtle:{ name:"Tartaruga", meta:"Comp di stallo", desc:"Il guscio riduce ogni colpo a chip damage. Niente ti uccide in fretta; niente di te è in fretta, del resto." },
+      skunk:{ name:"Moffetta", meta:"Strumento di zoning", desc:"Un'aura chimica deterrente che quasi nessun predatore osa sfidare. Abusa del disengage gratis e va' a foraggiare in pace." },
+      turkey:{ name:"Tacchino", meta:"Pick meme", desc:"Corpo grosso, voce grossa, nessun piano. Eppure è nel roster a ogni patch d'autunno. Giocalo per i contenuti." },
+      goat:{ name:"Capra", meta:"Cheese del terreno", desc:"La passiva piede fermo sblocca le rocce dove nessun altro può salire. L'altura è terreno gratis." },
+      bison:{ name:"Bisonte", meta:"Boss da raid", desc:"Un boss da raid che mangia erba. Stazza al massimo e zero predatori disposti a entrarti in coda — l'S-tier erbivoro. Mantenimento enorme." },
+      moose:{ name:"Alce", meta:"Nobiltà bruiser", desc:"HP enormi, velocità ingannevole e accesso all'acqua. A un lupo serve un party completo anche solo per tentare questo scontro." },
+      croc:{ name:"Coccodrillo", meta:"Design S-tier storico", desc:"Uno stat check vivente in meta da 200 milioni di anni. A terra la mobilità è pessima — presidia l'acqua e lascia che le prede vengano da te." },
     },
+    traitNames:{ swim:"nuota", fly:"vola sopra il terreno", climb:"si arrampica sugli alberi", nocturnal:"visione notturna", spikes:"gli aculei feriscono chi attacca", shell:"corazza", spray:"respinge i predatori", rockwalk:"scala le rocce" },
   },
   fr: {
     sub:"Sélection du personnage · La méta actuelle de la forêt, classée. Choisis une build et vois combien de jours tu tiens avant de te faire outplay.",
@@ -356,6 +560,7 @@ const T = {
     hp:"❤️ PV", hunger:"🍖 Faim", hydration:"💧 Hydratation", stamina:"⚡ Énergie",
     eatBtn:"🍽️ Manger / Pêcher", requeue:"🔁 Nouvelle partie",
     hint:"Déplacement : flèches / WASD · Repos : Espace · Manger ou pêcher : E · Avance sur une proie pour la chasser. Près de l'eau, tu bois automatiquement. Les arbres et les hautes herbes cachent les petits animaux.",
+    hintTouch:"Glisse le doigt sur la carte ou utilise le joystick pour te déplacer (maintiens pour continuer) · 💤 repos · 🍽️ manger ou pêcher · Avance sur une proie pour la chasser. Près de l'eau, tu bois automatiquement. Les arbres et les hautes herbes cachent les petits animaux.",
     bestRun:"· meilleure run {d}j", tierTag:"tier {tier}",
     dayWord1:"jour", dayWordN:"jours",
     start:"Tu entres sur le serveur de la forêt en tant que {animal}. glhf !",
@@ -382,7 +587,26 @@ const T = {
       deer:{ name:"Cerf", meta:"Brouteur tanky", desc:"Une bonne réserve de PV, une mobilité au top et une économie de pâturage inépuisable. Malheureusement, les coûts d'entretien sont brutaux, la stat de furtivité est un meme à cette taille de hitbox, et les mains loup te farment en boucle." },
       wolf:{ name:"Loup", meta:"Gros skill ceiling", desc:"LA build carnivore de la forêt — des matchups favorables contre tout le roster des proies. Les devs l'ont équilibrée avec un régime 100 % viande et une barre de faim punitive : rate quelques chasses d'affilée et tu meurs de faim. Gare aux mains rivaux territoriaux." },
       bear:{ name:"Ours", meta:"Domine la méta actuelle", desc:"Aucun counter naturel sur ce serveur — PWR, DEF et PV au max font de chaque combat un stat check gagné d'avance. Pour éviter que ce soit complètement pété, les devs lui ont mis une stat de faim absurde. Abuse de la capacité exclusive de pêche et de l'économie des baies." },
+      hawk:{ name:"Faucon", meta:"Abuseur de mobilité", desc:"Le vol reste la mécanique de déplacement la plus pétée du jeu : ignore le terrain, fonds sur les petites proies, ne crains rien. Garde juste ta barre de faim remplie." },
+      owl:{ name:"Hibou", meta:"One-trick nocturne", desc:"Le faucon de l'équipe de nuit. Vol silencieux et furtivité dans le noir te rendent presque invisible après le crépuscule — jouer de jour, c'est du throw." },
+      boar:{ name:"Sanglier", meta:"Économie berserker", desc:"Tank agressif qui mange de tout. Les loups te counter en théorie ; la plupart regrettent d'avoir goûté aux défenses." },
+      badger:{ name:"Blaireau", meta:"Menace livre pour livre", desc:"Des PV modestes, des dégâts absurdes pour sa catégorie de poids. LA build « pas touche » — elle se bat bien au-dessus de sa taille." },
+      squirrel:{ name:"Écureuil", meta:"Build parkour", desc:"Le passif d'escalade transforme chaque arbre en zone sûre. Farm les baies, feinte les faucons, vis sans payer de loyer." },
+      beaver:{ name:"Castor", meta:"Tech semi-aquatique", desc:"Ingénieur amphibie avec un accès à l'eau que presque aucune build ne peut toucher, plus une bonne économie de pâturage. Sur terre, la mobilité pique." },
+      duck:{ name:"Canard", meta:"Équilibré… en théorie", desc:"Nage, broute, picore du poisson — bon à tout, maître en rien. Toutes ses stats sont moyennes et deux prédateurs le savent." },
+      frog:{ name:"Grenouille", meta:"À ne pas pick en premier", desc:"1 point de PV, une soif qui explose loin de l'eau et la moitié du serveur dans ta liste de matchups. Réservé aux mains de la furtivité." },
+      hedgehog:{ name:"Hérisson", meta:"Passif épines", desc:"Les devs ont livré des piquants intégraux : l'attaquant paie chaque coup pendant que tu poursuis ta route. La stat de mobilité est une blague." },
+      snake:{ name:"Serpent", meta:"Assassin d'embuscade", desc:"Métabolisme ectotherme — tu n'as presque pas besoin de manger. Campe les hautes herbes et supprime les rongeurs au burst de venin." },
+      raccoon:{ name:"Raton laveur", meta:"Scaling d'INT", desc:"Le meilleur INT par taille du roster. Économie omnivore, mains habiles, bonus de nuit — un pick souple et tolérant." },
+      turtle:{ name:"Tortue", meta:"Compo de stall", desc:"La carapace réduit chaque coup en chip damage. Rien ne te tue vite ; rien chez toi n'est rapide non plus." },
+      skunk:{ name:"Mouffette", meta:"Outil de zoning", desc:"Une aura chimique dissuasive que la plupart des prédateurs refusent de défier. Abuse du désengagement gratuit et fourrage en paix." },
+      turkey:{ name:"Dindon", meta:"Pick meme", desc:"Grand corps, grande gueule, aucun plan. Et pourtant toujours au roster à chaque patch d'automne. À jouer pour le contenu." },
+      goat:{ name:"Chèvre", meta:"Cheese de terrain", desc:"Le passif pied sûr débloque les rochers que personne d'autre ne peut emprunter. La hauteur, c'est gratuit." },
+      bison:{ name:"Bison", meta:"Boss de raid", desc:"Un boss de raid qui mange de l'herbe. Masse maximale et zéro prédateur prêt à entrer dans ta file — le S-tier herbivore. Entretien énorme." },
+      moose:{ name:"Élan", meta:"Noblesse bruiser", desc:"PV massifs, vitesse trompeuse et accès à l'eau. Un loup a besoin d'une premade complète rien que pour tenter le combat." },
+      croc:{ name:"Crocodile", meta:"Design S-tier historique", desc:"Un stat check vivant, méta depuis 200 millions d'années. Sur terre la mobilité est nulle — tiens l'eau et laisse les proies venir à toi." },
     },
+    traitNames:{ swim:"nage", fly:"survole le terrain", climb:"grimpe aux arbres", nocturnal:"vision nocturne", spikes:"les piquants blessent l'attaquant", shell:"carapace blindée", spray:"repousse les prédateurs", rockwalk:"escalade les rochers" },
   },
 };
 
@@ -469,18 +693,6 @@ function spawnCritter(type, far) {
   critters.push({ type, ...spot, hp: def.hp, stunned: 0 });
 }
 
-function threatsFor(species) {
-  // which wildlife hunt this player, and what prey shares the map
-  switch (species) {
-    case "mouse":  return { predators:["hawk","fox","wolf"], prey:["rabbit","deer"] };
-    case "rabbit": return { predators:["hawk","fox","wolf"], prey:["mouse","deer"] };
-    case "fox":    return { predators:["wolf"],              prey:["mouse","rabbit","deer"] };
-    case "deer":   return { predators:["wolf"],              prey:["mouse","rabbit"] };
-    case "wolf":   return { predators:["rival"],             prey:["mouse","rabbit","deer"] };
-    case "bear":   return { predators:[],                    prey:["mouse","rabbit","deer","wolf"] };
-  }
-}
-
 function startGame(species) {
   const a = ANIMALS[species];
   makeMap();
@@ -493,11 +705,10 @@ function startGame(species) {
   const spot = emptySpot();
   player.x = spot.x; player.y = spot.y;
 
-  const th = threatsFor(species);
-  player.threatList = th.predators;
-  for (const p of th.prey) { spawnCritter(p); spawnCritter(p); }
-  if (th.prey.length) spawnCritter(th.prey[0]);
-  const startPreds = [...th.predators];
+  player.threatList = a.preds;
+  for (const p of a.preySp) { spawnCritter(p); spawnCritter(p); }
+  if (a.preySp.length) spawnCritter(a.preySp[0]);
+  const startPreds = [...a.preds];
   while (startPreds.length > 2) startPreds.splice(rnd(startPreds.length), 1);
   for (const pr of startPreds) spawnCritter(pr, true);
 
@@ -505,7 +716,8 @@ function startGame(species) {
   addLog("start", { sp: species });
   document.getElementById("picker").style.display = "none";
   document.querySelector(".sub").style.display = "none";
-  document.getElementById("game").style.display = "block";
+  document.getElementById("game").classList.add("active");
+  document.body.classList.add("playing");
   document.getElementById("playerTag").textContent =
     `${a.emoji} ${T[LANG].animals[species].name} · ${fmt(t("tierTag"), { tier: a.tier })}`;
   render();
@@ -513,17 +725,27 @@ function startGame(species) {
 
 // ------------------------------------------------------------------ turn logic
 function isNight() { return (turn % TURNS_PER_DAY) >= NIGHT_START; }
+function isDusk() { const tod = turn % TURNS_PER_DAY; return !isNight() && tod >= NIGHT_START - 4; }
 function inCover() {
   const t = map[player.y][player.x];
   return t === "tree" || t === "grass" || t === "den";
 }
+function effCover() {
+  let c = player.cover;
+  if (player.traits.includes("climb") && map[player.y][player.x] === "tree") c = Math.max(c, 0.85);
+  if (player.traits.includes("nocturnal") && isNight()) c = Math.min(0.95, c + 0.25);
+  return c;
+}
 
 function playerMove(dx, dy) {
-  if (over) return;
+  if (over || !player) return;
   const nx = player.x + dx, ny = player.y + dy;
   if (!inBounds(nx, ny)) return;
   const tile = map[ny][nx];
-  if (tile === "water" || tile === "rock") { addLog(tile === "water" ? "deepWater" : "boulder"); return; }
+  const canWater = player.traits.includes("swim") || player.traits.includes("fly");
+  const canRock = player.traits.includes("fly") || player.traits.includes("rockwalk");
+  if (tile === "water" && !canWater) { addLog("deepWater"); return; }
+  if (tile === "rock" && !canRock) { addLog("boulder"); return; }
 
   const target = critters.find(c => c.x === nx && c.y === ny);
   if (target) { attackCritter(target); endTurn(1.5); return; }
@@ -642,7 +864,7 @@ function critterTurn(c) {
   // detection: cover hides you, night helps nocturnal hunters see less far overall
   let sight = isNight() ? 4 : 5;
   if (c.type === "hawk") sight = isNight() ? 2 : 7; // hawks hunt by day
-  const hidden = inCover() && chance(player.cover);
+  const hidden = inCover() && chance(effCover());
 
   if (huntsPlayer && d <= sight && !hidden && c.hp > WILDLIFE[c.type].hp * 0.3) {
     // chases are tiring — sometimes the hunter gives up
@@ -686,6 +908,13 @@ function stepToward(c, tgt) {
 
 function predatorAttack(c) {
   const def = WILDLIFE[c.type];
+  // a face full of skunk spray usually ends the hunt before it starts
+  if (player.traits.includes("spray") && chance(0.5)) {
+    addLog("droveOff", { ct: c.type });
+    c.stunned = 3;
+    fleeStep(c);
+    return;
+  }
   // chance to dodge based on speed & energy
   let dodge = 0.15 + (player.speed - def.speed) * 0.06;
   if (player.energy < 25) dodge -= 0.15;
@@ -693,11 +922,16 @@ function predatorAttack(c) {
     addLog("predDodge", { ct: c.type, emoji: def.emoji });
     return;
   }
-  player.health -= def.damage;
-  addLog("predAttack", { ct: c.type, emoji: def.emoji, dmg: def.damage });
-  // fight back
-  if (player.attack >= 10) {
-    c.hp -= player.attack;
+  const dmg = player.traits.includes("shell") ? Math.ceil(def.damage * 0.4) : def.damage;
+  player.health -= dmg;
+  addLog("predAttack", { ct: c.type, emoji: def.emoji, dmg });
+  boardEl.classList.remove("shake");
+  void boardEl.offsetWidth;
+  boardEl.classList.add("shake");
+  // fight back (spines wound attackers even when the animal itself hits soft)
+  const retaliation = (player.attack >= 10 ? player.attack : 0) + (player.traits.includes("spikes") ? 14 : 0);
+  if (retaliation > 0) {
+    c.hp -= retaliation;
     if (c.hp <= 0) {
       critters.splice(critters.indexOf(c), 1);
       addLog("fightKill", { ct: c.type });
@@ -717,7 +951,7 @@ function endTurn(energyCost, safe = false) {
     day++;
     addLog("dawn", { n: day });
     // world replenishes a bit
-    if (chance(0.7)) spawnCritter(pick(threatsFor(player.species).prey), true);
+    if (player.preySp.length && chance(0.7)) spawnCritter(pick(player.preySp), true);
     const predCount = critters.filter(c => WILDLIFE[c.type].hunts >= player.size).length;
     if (chance(0.35) && player.threatList.length && predCount < 3) spawnCritter(pick(player.threatList), true);
   }
@@ -801,11 +1035,23 @@ for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
   cells.push(div);
 }
 
+function tileClass(tile, x, y) {
+  const v = " t" + ((x * 7 + y * 13) % 3); // deterministic per-tile shade variation
+  switch (tile) {
+    case "water": return " water";
+    case "rock": return " rock";
+    case "den": return " den";
+    case "grass": case "berry": return " grassy";
+    case "tree": return " tree" + v;
+    default: return v;
+  }
+}
+
 function render() {
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
     const cell = cells[y * W + x];
     const tile = map[y][x];
-    cell.className = "cell" + (tile === "water" ? " water" : "");
+    cell.className = "cell" + tileClass(tile, x, y);
     cell.textContent = TILE_EMOJI[tile];
   }
   for (const c of critters) {
@@ -817,6 +1063,7 @@ function render() {
   pc.classList.add("player");
 
   boardEl.classList.toggle("night", isNight());
+  boardEl.classList.toggle("dusk", isDusk());
   document.getElementById("phase").textContent = t(isNight() ? "phaseNight" : "phaseDay");
   document.getElementById("dayNum").textContent = day;
 
@@ -839,14 +1086,21 @@ const pickerEl = document.getElementById("picker");
 const TIER_ORDER = { S:0, A:1, B:2, C:3, D:4, F:5 };
 const segBar = v => `<div class="seg">${Array.from({ length: 10 }, (_, i) => `<i class="${i < v ? "on" : ""}"></i>`).join("")}</div>`;
 
+const TRAIT_ICONS = { swim:"🌊", fly:"🪶", climb:"🧗", nocturnal:"🌙", spikes:"🌵", shell:"🛡️", spray:"💨", rockwalk:"⛰️" };
+
 function buildPicker() {
   pickerEl.innerHTML = "";
   const sorted = Object.entries(ANIMALS).sort((a, b) => TIER_ORDER[a[1].tier] - TIER_ORDER[b[1].tier]);
+  let i = 0;
   for (const [key, a] of sorted) {
     const txt = T[LANG].animals[key];
     const best = localStorage.getItem("wildlife-best-" + key);
+    const traitLine = a.traits.length
+      ? `<div class="metatag">${a.traits.map(tr => `${TRAIT_ICONS[tr]} ${t("traitNames")[tr]}`).join(" · ")}</div>`
+      : "";
     const btn = document.createElement("button");
     btn.className = "animal-card";
+    btn.style.setProperty("--i", Math.min(i++, 14));
     btn.innerHTML = `
       <div class="cardtop"><span class="face">${a.emoji}</span><span class="tier ${a.tier}">${a.tier}</span></div>
       <h2>${txt.name}${best ? ` <small style="color:var(--dim);font-weight:400">${fmt(t("bestRun"), { d: best })}</small>` : ""}</h2>
@@ -855,7 +1109,7 @@ function buildPicker() {
         ${Object.entries(a.stats).map(([label, v]) =>
           `<div class="row"><b>${label}</b>${segBar(v)}<span class="num">${v}</span></div>`).join("")}
       </div>
-      <div class="metatag">▸ ${txt.meta}</div>`;
+      <div class="metatag">▸ ${txt.meta}</div>${traitLine}`;
     btn.onclick = () => startGame(key);
     pickerEl.appendChild(btn);
   }
@@ -869,6 +1123,11 @@ for (const code of Object.keys(T)) {
   b.onclick = () => setLang(code);
   langbarEl.appendChild(b);
 }
+// touch devices get touch instructions instead of keyboard ones (before the
+// initial setLang so the right key is used from the start)
+if (window.matchMedia("(pointer: coarse)").matches) {
+  document.getElementById("hint").dataset.i18n = "hintTouch";
+}
 setLang(LANG);
 
 // ------------------------------------------------------------------ input
@@ -880,11 +1139,67 @@ document.addEventListener("keydown", e => {
   else if (k === " ") { e.preventDefault(); rest(); }
   else if (k === "e") { e.preventDefault(); tryEat(); }
 });
-document.querySelectorAll("#dpad button[data-dir]").forEach(b => {
-  b.addEventListener("click", () => playerMove(...b.dataset.dir.split(",").map(Number)));
+// virtual joystick: drag past the dead zone to move; holding a direction repeats
+const joyEl = document.getElementById("joy");
+const joyKnob = document.getElementById("joyKnob");
+let joyDir = null, joyRepeat = null;
+
+function joySetDir(dir) {
+  if (joyDir && dir && joyDir[0] === dir[0] && joyDir[1] === dir[1]) return;
+  clearInterval(joyRepeat);
+  joyRepeat = null;
+  joyDir = dir;
+  if (dir) {
+    playerMove(...dir);
+    joyRepeat = setInterval(() => playerMove(...joyDir), 200);
+  }
+}
+
+function joyTrack(e) {
+  const r = joyEl.getBoundingClientRect();
+  const dx = e.clientX - (r.left + r.width / 2);
+  const dy = e.clientY - (r.top + r.height / 2);
+  const maxR = r.width / 2 - 28;
+  const mag = Math.hypot(dx, dy);
+  const k = mag > maxR ? maxR / mag : 1;
+  joyKnob.style.transform = `translate(calc(-50% + ${dx * k}px), calc(-50% + ${dy * k}px))`;
+  if (mag < r.width * 0.16) { joySetDir(null); return; }
+  joySetDir(Math.abs(dx) > Math.abs(dy) ? [Math.sign(dx), 0] : [0, Math.sign(dy)]);
+}
+
+function joyRelease() {
+  joyEl.classList.remove("dragging");
+  joyKnob.style.transform = "translate(-50%, -50%)";
+  joySetDir(null);
+}
+
+joyEl.addEventListener("pointerdown", e => {
+  e.preventDefault();
+  joyEl.setPointerCapture(e.pointerId);
+  joyEl.classList.add("dragging");
+  joyTrack(e);
 });
+joyEl.addEventListener("pointermove", e => { if (joyEl.classList.contains("dragging")) joyTrack(e); });
+for (const ev of ["pointerup", "pointercancel"]) joyEl.addEventListener(ev, joyRelease);
+joyEl.addEventListener("contextmenu", e => e.preventDefault());
+
 document.getElementById("restBtn").addEventListener("click", rest);
 document.getElementById("eatBtn").addEventListener("click", tryEat);
+
+// swipe on the board to move — the natural touch gesture
+let swipeStart = null;
+boardEl.addEventListener("touchstart", e => {
+  swipeStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+}, { passive: true });
+boardEl.addEventListener("touchend", e => {
+  if (!swipeStart) return;
+  const dx = e.changedTouches[0].clientX - swipeStart.x;
+  const dy = e.changedTouches[0].clientY - swipeStart.y;
+  swipeStart = null;
+  if (Math.max(Math.abs(dx), Math.abs(dy)) < 24) return; // just a tap
+  if (Math.abs(dx) > Math.abs(dy)) playerMove(Math.sign(dx), 0);
+  else playerMove(0, Math.sign(dy));
+});
 </script>
 </body>
 </html>
