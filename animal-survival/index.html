@@ -343,7 +343,7 @@
     <div class="face" id="overFace">💀</div>
     <h2 id="overTitle">You died</h2>
     <p id="overText"></p>
-    <button onclick="location.reload()" data-i18n="requeue">🔁 Requeue</button>
+    <button id="requeueBtn" data-i18n="requeue">🔁 Requeue</button>
   </div>
 </div>
 
@@ -1228,8 +1228,25 @@ document.addEventListener("pointerdown", e => {
 });
 for (const ev of ["pointerup", "pointercancel"]) document.addEventListener(ev, tapMoveStop);
 
-document.getElementById("restBtn").addEventListener("click", rest);
-document.getElementById("eatBtn").addEventListener("click", tryEat);
+// Buttons use pointerup instead of click: during play we preventDefault every
+// touchend (see below), which stops iOS Safari's double-tap zoom but also kills
+// the synthetic click events — pointer events fire regardless.
+document.getElementById("restBtn").addEventListener("pointerup", rest);
+document.getElementById("eatBtn").addEventListener("pointerup", tryEat);
+document.getElementById("requeueBtn").addEventListener("pointerup", () => location.reload());
+
+// iOS Safari still double-tap zooms despite touch-action: manipulation. The
+// only reliable suppression is preventDefault on single-finger touchend while
+// the game is active. Multi-finger gestures pass through, so pinch zoom keeps
+// working; all game input is pointer-event driven, so nothing else is lost.
+document.addEventListener("touchend", e => {
+  if (!document.body.classList.contains("playing")) return;
+  if (e.touches.length > 0) return; // fingers still down (pinch) — leave it alone
+  e.preventDefault();
+}, { passive: false });
+document.addEventListener("dblclick", e => {
+  if (document.body.classList.contains("playing")) e.preventDefault();
+});
 </script>
 </body>
 </html>
