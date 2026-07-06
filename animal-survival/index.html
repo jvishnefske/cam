@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Outside: Forest Server</title>
 <style>
   :root {
@@ -123,7 +123,18 @@
   #topline .day { font-weight: 600; }
   #topline .phase { color: var(--dim); }
 
+  /* boardWrap is a size container; the board fills it at its native aspect
+     ratio (16x12 cells + gaps + padding ≈ 1.327) in either orientation */
+  #boardWrap {
+    container-type: size;
+    flex: 1 1 auto;
+    min-height: 0; min-width: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
   #board {
+    --bratio: 1.327;
+    width: min(100cqw, calc(100cqh * var(--bratio)));
+    height: min(100cqh, calc(100cqw / var(--bratio)));
     display: grid;
     gap: 1px;
     background: #0a0f14;
@@ -142,9 +153,8 @@
     60% { transform: translate(-3px, -1px); } 80% { transform: translate(2px, 1px); }
   }
   .cell {
-    aspect-ratio: 1;
     display: flex; align-items: center; justify-content: center;
-    font-size: clamp(14px, 4.2vw, 26px);
+    font-size: calc(min(100cqw / 16, 100cqh / 12) * 0.62);
     border-radius: 3px;
     line-height: 1;
     overflow: hidden;
@@ -215,35 +225,60 @@
   .actbtn:active { background: #2f3f52; transform: translateY(1px); box-shadow: none; }
   #hint { text-align: center; color: var(--dim); font-size: 0.75rem; margin-top: 10px; }
 
-  /* ---- compact landscape (phones on their side): board left, controls right ---- */
-  @media (orientation: landscape) and (max-height: 540px) {
+  /* ---- fullscreen play mode: fill the viewport, no scroll, any orientation ---- */
+  body.playing {
+    padding: 0;
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+  }
+  body.playing #app {
+    max-width: none;
+    height: 100%;
+    display: flex; flex-direction: column;
+    padding: calc(6px + env(safe-area-inset-top)) calc(10px + env(safe-area-inset-right))
+             calc(8px + env(safe-area-inset-bottom)) calc(10px + env(safe-area-inset-left));
+  }
+  body.playing h1 { display: none; }
+  #game.active {
+    flex: 1; min-height: 0;
+    display: flex; flex-direction: column;
+    gap: 8px;
+  }
+  #game.active #topline, #game.active #hud, #game.active #log, #game.active #controls { margin: 0; flex: none; }
+  #game.active #log { min-height: 0; max-height: 96px; overflow-y: auto; }
+  @media (orientation: portrait) {
+    /* board takes its natural width-bound height (shrinking if space is tight);
+       the log absorbs whatever is left so there are no dead gaps */
+    #boardWrap { flex: 0 1 auto; flex-basis: calc((100dvw - 20px) / 1.327); }
+    #game.active #log { flex: 1 1 auto; max-height: none; }
+  }
+  #hint { display: none; }
+  @media (orientation: portrait) and (min-height: 780px) {
+    #hint { display: block; margin: 0; flex: none; }
+  }
+
+  /* landscape (phone or desktop): board left, everything else in a right column */
+  @media (orientation: landscape) {
     #game.active {
       display: grid;
-      grid-template-columns: auto minmax(0, 1fr);
+      grid-template-columns: minmax(0, 1fr) clamp(250px, 34vw, 360px);
+      grid-template-rows: auto auto minmax(0, 1fr) auto;
       grid-template-areas: "board top" "board hud" "board log" "board controls";
-      align-content: start;
       column-gap: 14px;
       row-gap: 8px;
     }
-    #topline { grid-area: top; margin-bottom: 0; }
-    #hud { grid-area: hud; grid-template-columns: 1fr 1fr; margin-bottom: 0; }
-    #board {
-      grid-area: board;
-      align-self: start;
-      width: calc((100vh - 60px) * 1.33);
-      width: calc((100dvh - 60px) * 1.33);
-      max-width: 56vw;
-    }
-    #log { grid-area: log; min-height: 0; max-height: 22vh; overflow-y: auto; margin-top: 0; }
-    #controls { grid-area: controls; margin-top: 0; }
-    #joy { width: 116px; height: 116px; }
-    #joyKnob { width: 50px; height: 50px; font-size: 1.2rem; }
-    .actbtn { height: 46px; min-width: 100px; }
-    #hint { display: none; }
+    #topline { grid-area: top; }
+    #hud { grid-area: hud; grid-template-columns: 1fr 1fr; }
+    #boardWrap { grid-area: board; }
+    #game.active #log { grid-area: log; max-height: none; }
+    #controls { grid-area: controls; }
   }
   @media (orientation: landscape) and (max-height: 540px) {
-    body.playing { padding: 8px; }
-    body.playing h1 { display: none; } /* reclaim vertical space while playing */
+    #joy { width: 112px; height: 112px; }
+    #joyKnob { width: 48px; height: 48px; font-size: 1.2rem; }
+    .actbtn { height: 44px; min-width: 96px; }
+    #controls { gap: 12px; }
   }
 
   /* ---- game over ---- */
@@ -288,7 +323,7 @@
       <div class="meter"><label><span data-i18n="hydration">💧 Hydration</span> <span id="waterVal"></span></label><div class="track"><div class="fill" id="waterFill"></div></div></div>
       <div class="meter"><label><span data-i18n="stamina">⚡ Stamina</span> <span id="energyVal"></span></label><div class="track"><div class="fill" id="energyFill"></div></div></div>
     </div>
-    <div id="board"></div>
+    <div id="boardWrap"><div id="board"></div></div>
     <div id="log"></div>
     <div id="controls">
       <div id="joy" aria-label="Joystick"><div id="joyKnob">🕹️</div></div>
@@ -1027,6 +1062,7 @@ function addLog(key, params) {
 // ------------------------------------------------------------------ render
 const boardEl = document.getElementById("board");
 boardEl.style.gridTemplateColumns = `repeat(${W}, 1fr)`;
+boardEl.style.gridTemplateRows = `repeat(${H}, 1fr)`;
 const cells = [];
 for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
   const div = document.createElement("div");
