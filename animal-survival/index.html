@@ -135,6 +135,7 @@
     --bratio: 1.327;
     width: min(100cqw, calc(100cqh * var(--bratio)));
     height: min(100cqh, calc(100cqw / var(--bratio)));
+    position: relative; /* anchors the #tapzones overlay */
     display: grid;
     gap: 1px;
     background: #0a0f14;
@@ -199,21 +200,32 @@
 
   #controls { display: flex; gap: 18px; align-items: center; justify-content: center; margin-top: 12px; flex-wrap: wrap; user-select: none; }
   #actcol { display: flex; flex-direction: row; gap: 10px; }
-  /* edge-tap direction hints: 45° lines from the corners split the screen into
-     four zones; tap a zone to step toward that edge */
-  #tapzones { display: none; }
+  /* direction pad: a square centered on the board, split by its diagonals
+     into four right triangles — tap a triangle to step that way */
+  #tapzones {
+    display: none;
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    height: 100%; aspect-ratio: 1;
+    z-index: 2; pointer-events: none;
+    background:
+      linear-gradient(45deg,  transparent calc(50% - 1px), rgba(110,231,160,.22) calc(50% - 1px), rgba(110,231,160,.22) calc(50% + 1px), transparent calc(50% + 1px)),
+      linear-gradient(-45deg, transparent calc(50% - 1px), rgba(110,231,160,.22) calc(50% - 1px), rgba(110,231,160,.22) calc(50% + 1px), transparent calc(50% + 1px));
+    box-shadow: inset 0 0 0 1px rgba(110,231,160,.18);
+    border-radius: 6px;
+  }
   body.playing #tapzones { display: block; }
   .tz {
-    position: fixed; z-index: 5; pointer-events: none;
-    color: var(--accent); opacity: 0.16; font-size: 1.5rem;
+    position: absolute; pointer-events: none;
+    color: var(--accent); opacity: 0.28; font-size: 1.3rem;
     transition: opacity .3s, transform .15s;
     text-shadow: 0 0 8px rgba(110,231,160,.6);
   }
-  .tz-up    { top: max(2px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); }
-  .tz-down  { bottom: max(2px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); }
-  .tz-left  { left: max(2px, env(safe-area-inset-left)); top: 50%; transform: translateY(-50%); }
-  .tz-right { right: max(2px, env(safe-area-inset-right)); top: 50%; transform: translateY(-50%); }
-  .tz.hit { opacity: 0.85; }
+  .tz-up    { top: 7%; left: 50%; transform: translateX(-50%); }
+  .tz-down  { bottom: 7%; left: 50%; transform: translateX(-50%); }
+  .tz-left  { left: 5%; top: 50%; transform: translateY(-50%); }
+  .tz-right { right: 5%; top: 50%; transform: translateY(-50%); }
+  .tz.hit { opacity: 0.95; }
   .tz-up.hit { transform: translateX(-50%) scale(1.35); }
   .tz-down.hit { transform: translateX(-50%) scale(1.35); }
   .tz-left.hit { transform: translateY(-50%) scale(1.35); }
@@ -322,17 +334,18 @@
       <div class="meter"><label><span data-i18n="hydration">💧 Hydration</span> <span id="waterVal"></span></label><div class="track"><div class="fill" id="waterFill"></div></div></div>
       <div class="meter"><label><span data-i18n="stamina">⚡ Stamina</span> <span id="energyVal"></span></label><div class="track"><div class="fill" id="energyFill"></div></div></div>
     </div>
-    <div id="boardWrap"><div id="board"></div></div>
+    <div id="boardWrap"><div id="board">
+      <div id="tapzones" aria-hidden="true">
+        <span class="tz tz-up">▲</span><span class="tz tz-down">▼</span>
+        <span class="tz tz-left">◀</span><span class="tz tz-right">▶</span>
+      </div>
+    </div></div>
     <div id="log"></div>
     <div id="controls">
       <div id="actcol">
         <button class="actbtn" id="restBtn" title="Rest">💤</button>
         <button class="actbtn" id="eatBtn" data-i18n="eatBtn">🍽️ Eat / Fish</button>
       </div>
-    </div>
-    <div id="tapzones" aria-hidden="true">
-      <span class="tz tz-up">▲</span><span class="tz tz-down">▼</span>
-      <span class="tz tz-left">◀</span><span class="tz tz-right">▶</span>
     </div>
     <p id="hint" data-i18n="hint">Move: arrows / WASD · Rest: Space · Eat or fish: E · Walk into prey to hunt it. Standing next to water drinks automatically. Trees &amp; tall grass hide small animals.</p>
   </div>
@@ -435,7 +448,7 @@ const T = {
     hp:"❤️ HP", hunger:"🍖 Hunger", hydration:"💧 Hydration", stamina:"⚡ Stamina",
     eatBtn:"🍽️ Eat / Fish", requeue:"🔁 Requeue",
     hint:"Move: arrows / WASD · Rest: Space · Eat or fish: E · Walk into prey to hunt it. Standing next to water drinks automatically. Trees & tall grass hide small animals.",
-    hintTouch:"Tap near a screen edge to move that way — hold to keep moving · 💤 rest · 🍽️ eat or fish · Walk into prey to hunt it. Standing next to water drinks automatically. Trees & tall grass hide small animals.",
+    hintTouch:"Tap a triangle of the square on the board to move that way — hold to keep moving · 💤 rest · 🍽️ eat or fish · Walk into prey to hunt it. Standing next to water drinks automatically. Trees & tall grass hide small animals.",
     bestRun:"· best run {d}d", tierTag:"{tier}-tier",
     dayWord1:"day", dayWordN:"days",
     start:"Queued into the forest server as {animal}. glhf!",
@@ -489,7 +502,7 @@ const T = {
     hp:"❤️ HP", hunger:"🍖 Hambre", hydration:"💧 Hidratación", stamina:"⚡ Energía",
     eatBtn:"🍽️ Comer / Pescar", requeue:"🔁 Otra partida",
     hint:"Mover: flechas / WASD · Descansar: Espacio · Comer o pescar: E · Camina hacia una presa para cazarla. Junto al agua bebes automáticamente. Los árboles y la hierba alta esconden a los animales pequeños.",
-    hintTouch:"Toca cerca de un borde de la pantalla para moverte hacia allí — mantén pulsado para seguir andando · 💤 descansar · 🍽️ comer o pescar · Camina hacia una presa para cazarla. Junto al agua bebes automáticamente. Los árboles y la hierba alta esconden a los animales pequeños.",
+    hintTouch:"Toca un triángulo del cuadrado del tablero para moverte hacia allí — mantén pulsado para seguir andando · 💤 descansar · 🍽️ comer o pescar · Camina hacia una presa para cazarla. Junto al agua bebes automáticamente. Los árboles y la hierba alta esconden a los animales pequeños.",
     bestRun:"· mejor run {d}d", tierTag:"tier {tier}",
     dayWord1:"día", dayWordN:"días",
     start:"Entras al servidor del bosque como {animal}. ¡glhf!",
@@ -543,7 +556,7 @@ const T = {
     hp:"❤️ HP", hunger:"🍖 Fame", hydration:"💧 Idratazione", stamina:"⚡ Energia",
     eatBtn:"🍽️ Mangia / Pesca", requeue:"🔁 Nuova partita",
     hint:"Movimento: frecce / WASD · Riposo: Spazio · Mangia o pesca: E · Vai addosso a una preda per cacciarla. Accanto all'acqua bevi in automatico. Alberi ed erba alta nascondono gli animali piccoli.",
-    hintTouch:"Tocca vicino a un bordo dello schermo per muoverti in quella direzione — tieni premuto per continuare · 💤 riposa · 🍽️ mangia o pesca · Vai addosso a una preda per cacciarla. Accanto all'acqua bevi in automatico. Alberi ed erba alta nascondono gli animali piccoli.",
+    hintTouch:"Tocca un triangolo del quadrato sulla mappa per muoverti in quella direzione — tieni premuto per continuare · 💤 riposa · 🍽️ mangia o pesca · Vai addosso a una preda per cacciarla. Accanto all'acqua bevi in automatico. Alberi ed erba alta nascondono gli animali piccoli.",
     bestRun:"· miglior run {d}g", tierTag:"tier {tier}",
     dayWord1:"giorno", dayWordN:"giorni",
     start:"Entri nel server della foresta come {animal}. glhf!",
@@ -597,7 +610,7 @@ const T = {
     hp:"❤️ PV", hunger:"🍖 Faim", hydration:"💧 Hydratation", stamina:"⚡ Énergie",
     eatBtn:"🍽️ Manger / Pêcher", requeue:"🔁 Nouvelle partie",
     hint:"Déplacement : flèches / WASD · Repos : Espace · Manger ou pêcher : E · Avance sur une proie pour la chasser. Près de l'eau, tu bois automatiquement. Les arbres et les hautes herbes cachent les petits animaux.",
-    hintTouch:"Touche près d'un bord de l'écran pour te déplacer dans cette direction — maintiens pour continuer · 💤 repos · 🍽️ manger ou pêcher · Avance sur une proie pour la chasser. Près de l'eau, tu bois automatiquement. Les arbres et les hautes herbes cachent les petits animaux.",
+    hintTouch:"Touche un triangle du carré sur la carte pour te déplacer dans cette direction — maintiens pour continuer · 💤 repos · 🍽️ manger ou pêcher · Avance sur une proie pour la chasser. Près de l'eau, tu bois automatiquement. Les arbres et les hautes herbes cachent les petits animaux.",
     bestRun:"· meilleure run {d}j", tierTag:"tier {tier}",
     dayWord1:"jour", dayWordN:"jours",
     start:"Tu entres sur le serveur de la forêt en tant que {animal}. glhf !",
@@ -1177,9 +1190,9 @@ document.addEventListener("keydown", e => {
   else if (k === " ") { e.preventDefault(); rest(); }
   else if (k === "e") { e.preventDefault(); tryEat(); }
 });
-// edge-tap movement: 45° lines from the screen corners divide the viewport into
-// four zones (equivalently: the nearest screen edge wins). Tap a zone to step
-// toward that edge; press and hold to keep moving.
+// direction pad: a square centered on the board, cut by its diagonals into four
+// right triangles. Tap a triangle to step toward that side; press and hold to
+// keep moving. Taps outside the square do nothing.
 const TZ = {
   "0,-1": document.querySelector(".tz-up"),
   "0,1": document.querySelector(".tz-down"),
@@ -1189,14 +1202,13 @@ const TZ = {
 let tapDirNow = null, tapHold = null, tapRepeat = null, tzFlash = null;
 
 function tapZoneDir(x, y) {
-  const edges = [
-    [y, [0, -1]],                // distance to top
-    [innerHeight - y, [0, 1]],   // bottom
-    [x, [-1, 0]],                // left
-    [innerWidth - x, [1, 0]],    // right
-  ];
-  edges.sort((a, b) => a[0] - b[0]);
-  return edges[0][1];
+  const r = boardEl.getBoundingClientRect();
+  const half = Math.min(r.width, r.height) / 2; // square inscribed in the board
+  const dx = x - (r.left + r.width / 2);
+  const dy = y - (r.top + r.height / 2);
+  if (Math.abs(dx) > half || Math.abs(dy) > half) return null; // outside the square
+  if (dx === 0 && dy === 0) return null;
+  return Math.abs(dx) > Math.abs(dy) ? [Math.sign(dx), 0] : [0, Math.sign(dy)];
 }
 
 function flashZone(dir) {
@@ -1218,8 +1230,10 @@ function tapMoveStop() {
 document.addEventListener("pointerdown", e => {
   if (!player || over || !document.body.classList.contains("playing")) return;
   if (e.target.closest("button, #actcol, #overlay, #langbar")) return;
+  const dir = tapZoneDir(e.clientX, e.clientY);
+  if (!dir) return;
   e.preventDefault();
-  tapDirNow = tapZoneDir(e.clientX, e.clientY);
+  tapDirNow = dir;
   flashZone(tapDirNow);
   playerMove(...tapDirNow);
   tapHold = setTimeout(() => {
