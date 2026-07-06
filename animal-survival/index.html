@@ -200,13 +200,13 @@
 
   #controls { display: flex; gap: 18px; align-items: center; justify-content: center; margin-top: 12px; flex-wrap: wrap; user-select: none; }
   #actcol { display: flex; flex-direction: row; gap: 10px; }
-  /* direction pad: a square centered on the board, split by its diagonals
-     into four right triangles — tap a triangle to step that way */
+  /* direction pad: a square centered on the board's center, split by its
+     diagonals into four right triangles — tap a triangle to step that way.
+     JS sizes it so it always reaches at least two screen edges. */
   #tapzones {
     display: none;
     position: absolute; top: 50%; left: 50%;
     transform: translate(-50%, -50%);
-    height: 100%; aspect-ratio: 1;
     z-index: 2; pointer-events: none;
     background:
       linear-gradient(45deg,  transparent calc(50% - 1px), rgba(110,231,160,.22) calc(50% - 1px), rgba(110,231,160,.22) calc(50% + 1px), transparent calc(50% + 1px)),
@@ -771,6 +771,7 @@ function startGame(species) {
   document.getElementById("playerTag").textContent =
     `${a.emoji} ${T[LANG].animals[species].name} · ${fmt(t("tierTag"), { tier: a.tier })}`;
   render();
+  sizeTapOverlay();
 }
 
 // ------------------------------------------------------------------ turn logic
@@ -1190,9 +1191,11 @@ document.addEventListener("keydown", e => {
   else if (k === " ") { e.preventDefault(); rest(); }
   else if (k === "e") { e.preventDefault(); tryEat(); }
 });
-// direction pad: a square centered on the board, cut by its diagonals into four
-// right triangles. Tap a triangle to step toward that side; press and hold to
-// keep moving. Taps outside the square do nothing.
+// direction pad: a square centered on the board's center, cut by its diagonals
+// into four right triangles. Tap a triangle to step toward that side; press and
+// hold to keep moving. The square grows until it reaches at least two screen
+// edges (the two nearest), so it can be larger than the board itself; taps
+// beyond it do nothing.
 const TZ = {
   "0,-1": document.querySelector(".tz-up"),
   "0,1": document.querySelector(".tz-down"),
@@ -1201,11 +1204,27 @@ const TZ = {
 };
 let tapDirNow = null, tapHold = null, tapRepeat = null, tzFlash = null;
 
-function tapZoneDir(x, y) {
+function tapSquare() {
   const r = boardEl.getBoundingClientRect();
-  const half = Math.min(r.width, r.height) / 2; // square inscribed in the board
-  const dx = x - (r.left + r.width / 2);
-  const dy = y - (r.top + r.height / 2);
+  const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+  // distances from the square's center to the four screen edges; taking the
+  // second smallest makes the square touch (at least) the two nearest edges
+  const d = [cx, innerWidth - cx, cy, innerHeight - cy].sort((a, b) => a - b);
+  const half = Math.max(d[1], Math.min(r.width, r.height) / 2);
+  return { cx, cy, half };
+}
+
+function sizeTapOverlay() {
+  if (!player) return;
+  const { half } = tapSquare();
+  const tz = document.getElementById("tapzones");
+  tz.style.width = tz.style.height = half * 2 + "px";
+}
+window.addEventListener("resize", sizeTapOverlay);
+
+function tapZoneDir(x, y) {
+  const { cx, cy, half } = tapSquare();
+  const dx = x - cx, dy = y - cy;
   if (Math.abs(dx) > half || Math.abs(dy) > half) return null; // outside the square
   if (dx === 0 && dy === 0) return null;
   return Math.abs(dx) > Math.abs(dy) ? [Math.sign(dx), 0] : [0, Math.sign(dy)];
