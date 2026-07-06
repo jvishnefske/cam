@@ -141,7 +141,7 @@
     border-radius: 10px;
     padding: 4px;
     user-select: none;
-    touch-action: none; /* the board handles its own swipe gestures */
+    touch-action: manipulation;
     transition: filter 1.2s;
     box-shadow: 0 10px 30px rgba(0,0,0,.45), inset 0 0 0 1px rgba(255,255,255,.04);
   }
@@ -198,25 +198,26 @@
   #log .latest { color: var(--text); }
 
   #controls { display: flex; gap: 18px; align-items: center; justify-content: center; margin-top: 12px; flex-wrap: wrap; user-select: none; }
-  #joy {
-    width: 148px; height: 148px; border-radius: 50%;
-    background: radial-gradient(circle at 50% 42%, #26303e, #161d26 70%);
-    box-shadow: inset 0 3px 10px rgba(0,0,0,.55), 0 1px 0 rgba(255,255,255,.05);
-    position: relative; touch-action: none; cursor: grab; flex: none;
+  #actcol { display: flex; flex-direction: row; gap: 10px; }
+  /* edge-tap direction hints: 45° lines from the corners split the screen into
+     four zones; tap a zone to step toward that edge */
+  #tapzones { display: none; }
+  body.playing #tapzones { display: block; }
+  .tz {
+    position: fixed; z-index: 5; pointer-events: none;
+    color: var(--accent); opacity: 0.16; font-size: 1.5rem;
+    transition: opacity .3s, transform .15s;
+    text-shadow: 0 0 8px rgba(110,231,160,.6);
   }
-  #joyKnob {
-    width: 62px; height: 62px; border-radius: 50%;
-    background: radial-gradient(circle at 35% 30%, #45597a, #2b3a4e);
-    border: 2px solid rgba(110,231,160,.35);
-    box-shadow: 0 4px 10px rgba(0,0,0,.5);
-    position: absolute; left: 50%; top: 50%;
-    transform: translate(-50%, -50%);
-    display: flex; align-items: center; justify-content: center;
-    font-size: 1.5rem; pointer-events: none;
-    transition: transform .12s ease-out;
-  }
-  #joy.dragging #joyKnob { transition: none; }
-  #actcol { display: flex; flex-direction: column; gap: 10px; }
+  .tz-up    { top: max(2px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); }
+  .tz-down  { bottom: max(2px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); }
+  .tz-left  { left: max(2px, env(safe-area-inset-left)); top: 50%; transform: translateY(-50%); }
+  .tz-right { right: max(2px, env(safe-area-inset-right)); top: 50%; transform: translateY(-50%); }
+  .tz.hit { opacity: 0.85; }
+  .tz-up.hit { transform: translateX(-50%) scale(1.35); }
+  .tz-down.hit { transform: translateX(-50%) scale(1.35); }
+  .tz-left.hit { transform: translateY(-50%) scale(1.35); }
+  .tz-right.hit { transform: translateY(-50%) scale(1.35); }
   .actbtn {
     background: var(--panel2); color: var(--text); border: none; border-radius: 12px;
     font-size: 0.95rem; cursor: pointer; padding: 0 20px; height: 56px; min-width: 120px;
@@ -275,8 +276,6 @@
     #controls { grid-area: controls; }
   }
   @media (orientation: landscape) and (max-height: 540px) {
-    #joy { width: 112px; height: 112px; }
-    #joyKnob { width: 48px; height: 48px; font-size: 1.2rem; }
     .actbtn { height: 44px; min-width: 96px; }
     #controls { gap: 12px; }
   }
@@ -326,11 +325,14 @@
     <div id="boardWrap"><div id="board"></div></div>
     <div id="log"></div>
     <div id="controls">
-      <div id="joy" aria-label="Joystick"><div id="joyKnob">🕹️</div></div>
       <div id="actcol">
         <button class="actbtn" id="restBtn" title="Rest">💤</button>
         <button class="actbtn" id="eatBtn" data-i18n="eatBtn">🍽️ Eat / Fish</button>
       </div>
+    </div>
+    <div id="tapzones" aria-hidden="true">
+      <span class="tz tz-up">▲</span><span class="tz tz-down">▼</span>
+      <span class="tz tz-left">◀</span><span class="tz tz-right">▶</span>
     </div>
     <p id="hint" data-i18n="hint">Move: arrows / WASD · Rest: Space · Eat or fish: E · Walk into prey to hunt it. Standing next to water drinks automatically. Trees &amp; tall grass hide small animals.</p>
   </div>
@@ -433,7 +435,7 @@ const T = {
     hp:"❤️ HP", hunger:"🍖 Hunger", hydration:"💧 Hydration", stamina:"⚡ Stamina",
     eatBtn:"🍽️ Eat / Fish", requeue:"🔁 Requeue",
     hint:"Move: arrows / WASD · Rest: Space · Eat or fish: E · Walk into prey to hunt it. Standing next to water drinks automatically. Trees & tall grass hide small animals.",
-    hintTouch:"Swipe the map or use the joystick to move (hold to keep moving) · 💤 rest · 🍽️ eat or fish · Walk into prey to hunt it. Standing next to water drinks automatically. Trees & tall grass hide small animals.",
+    hintTouch:"Tap near a screen edge to move that way — hold to keep moving · 💤 rest · 🍽️ eat or fish · Walk into prey to hunt it. Standing next to water drinks automatically. Trees & tall grass hide small animals.",
     bestRun:"· best run {d}d", tierTag:"{tier}-tier",
     dayWord1:"day", dayWordN:"days",
     start:"Queued into the forest server as {animal}. glhf!",
@@ -487,7 +489,7 @@ const T = {
     hp:"❤️ HP", hunger:"🍖 Hambre", hydration:"💧 Hidratación", stamina:"⚡ Energía",
     eatBtn:"🍽️ Comer / Pescar", requeue:"🔁 Otra partida",
     hint:"Mover: flechas / WASD · Descansar: Espacio · Comer o pescar: E · Camina hacia una presa para cazarla. Junto al agua bebes automáticamente. Los árboles y la hierba alta esconden a los animales pequeños.",
-    hintTouch:"Desliza el dedo por el mapa o usa el joystick para moverte (mantén pulsado para seguir andando) · 💤 descansar · 🍽️ comer o pescar · Camina hacia una presa para cazarla. Junto al agua bebes automáticamente. Los árboles y la hierba alta esconden a los animales pequeños.",
+    hintTouch:"Toca cerca de un borde de la pantalla para moverte hacia allí — mantén pulsado para seguir andando · 💤 descansar · 🍽️ comer o pescar · Camina hacia una presa para cazarla. Junto al agua bebes automáticamente. Los árboles y la hierba alta esconden a los animales pequeños.",
     bestRun:"· mejor run {d}d", tierTag:"tier {tier}",
     dayWord1:"día", dayWordN:"días",
     start:"Entras al servidor del bosque como {animal}. ¡glhf!",
@@ -541,7 +543,7 @@ const T = {
     hp:"❤️ HP", hunger:"🍖 Fame", hydration:"💧 Idratazione", stamina:"⚡ Energia",
     eatBtn:"🍽️ Mangia / Pesca", requeue:"🔁 Nuova partita",
     hint:"Movimento: frecce / WASD · Riposo: Spazio · Mangia o pesca: E · Vai addosso a una preda per cacciarla. Accanto all'acqua bevi in automatico. Alberi ed erba alta nascondono gli animali piccoli.",
-    hintTouch:"Scorri il dito sulla mappa o usa il joystick per muoverti (tieni premuto per continuare) · 💤 riposa · 🍽️ mangia o pesca · Vai addosso a una preda per cacciarla. Accanto all'acqua bevi in automatico. Alberi ed erba alta nascondono gli animali piccoli.",
+    hintTouch:"Tocca vicino a un bordo dello schermo per muoverti in quella direzione — tieni premuto per continuare · 💤 riposa · 🍽️ mangia o pesca · Vai addosso a una preda per cacciarla. Accanto all'acqua bevi in automatico. Alberi ed erba alta nascondono gli animali piccoli.",
     bestRun:"· miglior run {d}g", tierTag:"tier {tier}",
     dayWord1:"giorno", dayWordN:"giorni",
     start:"Entri nel server della foresta come {animal}. glhf!",
@@ -595,7 +597,7 @@ const T = {
     hp:"❤️ PV", hunger:"🍖 Faim", hydration:"💧 Hydratation", stamina:"⚡ Énergie",
     eatBtn:"🍽️ Manger / Pêcher", requeue:"🔁 Nouvelle partie",
     hint:"Déplacement : flèches / WASD · Repos : Espace · Manger ou pêcher : E · Avance sur une proie pour la chasser. Près de l'eau, tu bois automatiquement. Les arbres et les hautes herbes cachent les petits animaux.",
-    hintTouch:"Glisse le doigt sur la carte ou utilise le joystick pour te déplacer (maintiens pour continuer) · 💤 repos · 🍽️ manger ou pêcher · Avance sur une proie pour la chasser. Près de l'eau, tu bois automatiquement. Les arbres et les hautes herbes cachent les petits animaux.",
+    hintTouch:"Touche près d'un bord de l'écran pour te déplacer dans cette direction — maintiens pour continuer · 💤 repos · 🍽️ manger ou pêcher · Avance sur une proie pour la chasser. Près de l'eau, tu bois automatiquement. Les arbres et les hautes herbes cachent les petits animaux.",
     bestRun:"· meilleure run {d}j", tierTag:"tier {tier}",
     dayWord1:"jour", dayWordN:"jours",
     start:"Tu entres sur le serveur de la forêt en tant que {animal}. glhf !",
@@ -1175,67 +1177,59 @@ document.addEventListener("keydown", e => {
   else if (k === " ") { e.preventDefault(); rest(); }
   else if (k === "e") { e.preventDefault(); tryEat(); }
 });
-// virtual joystick: drag past the dead zone to move; holding a direction repeats
-const joyEl = document.getElementById("joy");
-const joyKnob = document.getElementById("joyKnob");
-let joyDir = null, joyRepeat = null;
+// edge-tap movement: 45° lines from the screen corners divide the viewport into
+// four zones (equivalently: the nearest screen edge wins). Tap a zone to step
+// toward that edge; press and hold to keep moving.
+const TZ = {
+  "0,-1": document.querySelector(".tz-up"),
+  "0,1": document.querySelector(".tz-down"),
+  "-1,0": document.querySelector(".tz-left"),
+  "1,0": document.querySelector(".tz-right"),
+};
+let tapDirNow = null, tapHold = null, tapRepeat = null, tzFlash = null;
 
-function joySetDir(dir) {
-  if (joyDir && dir && joyDir[0] === dir[0] && joyDir[1] === dir[1]) return;
-  clearInterval(joyRepeat);
-  joyRepeat = null;
-  joyDir = dir;
-  if (dir) {
-    playerMove(...dir);
-    joyRepeat = setInterval(() => playerMove(...joyDir), 200);
-  }
+function tapZoneDir(x, y) {
+  const edges = [
+    [y, [0, -1]],                // distance to top
+    [innerHeight - y, [0, 1]],   // bottom
+    [x, [-1, 0]],                // left
+    [innerWidth - x, [1, 0]],    // right
+  ];
+  edges.sort((a, b) => a[0] - b[0]);
+  return edges[0][1];
 }
 
-function joyTrack(e) {
-  const r = joyEl.getBoundingClientRect();
-  const dx = e.clientX - (r.left + r.width / 2);
-  const dy = e.clientY - (r.top + r.height / 2);
-  const maxR = r.width / 2 - 28;
-  const mag = Math.hypot(dx, dy);
-  const k = mag > maxR ? maxR / mag : 1;
-  joyKnob.style.transform = `translate(calc(-50% + ${dx * k}px), calc(-50% + ${dy * k}px))`;
-  if (mag < r.width * 0.16) { joySetDir(null); return; }
-  joySetDir(Math.abs(dx) > Math.abs(dy) ? [Math.sign(dx), 0] : [0, Math.sign(dy)]);
+function flashZone(dir) {
+  const el = TZ[dir.join(",")];
+  if (!el) return;
+  clearTimeout(tzFlash);
+  document.querySelectorAll(".tz.hit").forEach(z => z.classList.remove("hit"));
+  el.classList.add("hit");
+  tzFlash = setTimeout(() => el.classList.remove("hit"), 250);
 }
 
-function joyRelease() {
-  joyEl.classList.remove("dragging");
-  joyKnob.style.transform = "translate(-50%, -50%)";
-  joySetDir(null);
+function tapMoveStop() {
+  clearTimeout(tapHold);
+  clearInterval(tapRepeat);
+  tapHold = tapRepeat = null;
+  tapDirNow = null;
 }
 
-joyEl.addEventListener("pointerdown", e => {
+document.addEventListener("pointerdown", e => {
+  if (!player || over || !document.body.classList.contains("playing")) return;
+  if (e.target.closest("button, #actcol, #overlay, #langbar")) return;
   e.preventDefault();
-  joyEl.setPointerCapture(e.pointerId);
-  joyEl.classList.add("dragging");
-  joyTrack(e);
+  tapDirNow = tapZoneDir(e.clientX, e.clientY);
+  flashZone(tapDirNow);
+  playerMove(...tapDirNow);
+  tapHold = setTimeout(() => {
+    tapRepeat = setInterval(() => { if (tapDirNow) { playerMove(...tapDirNow); flashZone(tapDirNow); } }, 200);
+  }, 380);
 });
-joyEl.addEventListener("pointermove", e => { if (joyEl.classList.contains("dragging")) joyTrack(e); });
-for (const ev of ["pointerup", "pointercancel"]) joyEl.addEventListener(ev, joyRelease);
-joyEl.addEventListener("contextmenu", e => e.preventDefault());
+for (const ev of ["pointerup", "pointercancel"]) document.addEventListener(ev, tapMoveStop);
 
 document.getElementById("restBtn").addEventListener("click", rest);
 document.getElementById("eatBtn").addEventListener("click", tryEat);
-
-// swipe on the board to move — the natural touch gesture
-let swipeStart = null;
-boardEl.addEventListener("touchstart", e => {
-  swipeStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-}, { passive: true });
-boardEl.addEventListener("touchend", e => {
-  if (!swipeStart) return;
-  const dx = e.changedTouches[0].clientX - swipeStart.x;
-  const dy = e.changedTouches[0].clientY - swipeStart.y;
-  swipeStart = null;
-  if (Math.max(Math.abs(dx), Math.abs(dy)) < 24) return; // just a tap
-  if (Math.abs(dx) > Math.abs(dy)) playerMove(Math.sign(dx), 0);
-  else playerMove(0, Math.sign(dy));
-});
 </script>
 </body>
 </html>
