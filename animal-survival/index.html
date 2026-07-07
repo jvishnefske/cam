@@ -177,6 +177,12 @@
     animation: waterFlow 5s ease-in-out infinite;
   }
   @keyframes waterFlow { 0%,100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
+  /* level 2: sunlit Cretaceous grassland — brighter, yellower greens */
+  #board.l2 .cell.t0 { background: linear-gradient(135deg, #33511f, #2b451c); }
+  #board.l2 .cell.t1 { background: linear-gradient(135deg, #375723, #2f4b20); }
+  #board.l2 .cell.t2 { background: linear-gradient(135deg, #2f4d24, #284120); }
+  #board.l2 .cell.grassy { background: linear-gradient(135deg, #3c5c22, #345021); }
+  #board.l2 .cell.rock { background: linear-gradient(135deg, #3a3026, #2c251e); }
   .cell.player {
     outline: 2px solid var(--accent); outline-offset: -2px;
     animation: playerPulse 1.8s ease-in-out infinite;
@@ -324,7 +330,7 @@
 
   <div id="game">
     <div id="topline">
-      <span class="day"><span data-i18n="day">Day</span> <span id="dayNum">1</span></span>
+      <span class="day"><span data-i18n="day">Day</span> <span id="dayNum">1</span><span id="lvlTag"></span></span>
       <span id="playerTag"></span>
       <span class="phase" id="phase">☀️ Day</span>
     </div>
@@ -367,6 +373,7 @@
 const W = 16, H = 12;
 const TURNS_PER_DAY = 30;
 const NIGHT_START = 21;           // turn-of-day when night falls
+const LEVEL2_DAY = 4;             // dawn of this day promotes you to the Cretaceous server
 
 // Sizes: 1 mouse … 6 bison. Predators hunt anything at or below their "hunts" size.
 // preds: wildlife that hunts this build. preySp: wildlife that spawns as ambient prey.
@@ -433,7 +440,15 @@ const WILDLIFE = {
   fox:    { emoji:"🦊", size:3, speed:7, hp:45,  hunts:2, damage:18, food:45, prey:false },
   wolf:   { emoji:"🐺", size:5, speed:7, hp:80,  hunts:4, damage:26, food:70, prey:false },
   rival:  { emoji:"🐺", size:5, speed:7, hp:80,  hunts:5, damage:26, food:70, prey:false }, // territorial rival
+  // level 2 (Cretaceous server) wildlife
+  lizard: { emoji:"🦎", size:1, speed:6, hp:12,  hunts:0, damage:0,  food:22,  prey:true },
+  dodo:   { emoji:"🦤", size:3, speed:4, hp:30,  hunts:0, damage:0,  food:60,  prey:true },
+  sauro:  { emoji:"🦕", size:6, speed:5, hp:90,  hunts:0, damage:10, food:130, prey:true },
+  trex:   { emoji:"🦖", size:6, speed:6, hp:160, hunts:6, damage:40, food:150, prey:false }, // hunts everything
+  sarco:  { emoji:"🐊", size:5, speed:4, hp:110, hunts:5, damage:32, food:90,  prey:false },
 };
+const L2_PREY = ["lizard", "dodo", "sauro"];
+const L2_PREDS = ["trex", "sarco"];
 
 const TILE_EMOJI = { land:"", water:"🌊", tree:"🌲", grass:"🌿", berry:"🍓", rock:"🪨", den:"🕳️" };
 const NUTRITION = { grass:18, berry:30, fish:40 };
@@ -466,8 +481,10 @@ const T = {
     dawn:"🌅 Day {n} dawns. You survived the night.", drinkFull:"You drink your fill from the lake. 💧",
     starvingWarn:"You are starving! ❗", thirstWarn:"You are dying of thirst! ❗",
     killedBy:"Killed by {type} {emoji}", diedThirst:"Died of thirst 💧", starved:"Starved to death 🦴",
+    level2:"🌋 LEVEL 2 — A rift drops you onto the Cretaceous server. The apex predators here don't read tier lists. glhf!",
     overText:"GG — you got outplayed. Your {animal} run lasted {d} {dword}. Personal best on this build: {best} {dwordp}.",
-    critters:{ mouse:"the mouse", rabbit:"the rabbit", deer:"the deer", hawk:"the hawk", fox:"the fox", wolf:"the wolf", rival:"the rival wolf" },
+    critters:{ mouse:"the mouse", rabbit:"the rabbit", deer:"the deer", hawk:"the hawk", fox:"the fox", wolf:"the wolf", rival:"the rival wolf",
+      lizard:"the lizard", dodo:"the dodo", sauro:"the young sauropod", trex:"the T. rex", sarco:"the giant crocodile" },
     animals:{
       mouse:{ name:"Mouse", meta:"Hardcore-mode pick", desc:"The ultimate budget build: near-zero upkeep costs and the best stealth stat on the server. The catch? A 1-point HP pool — literally every predator matchup is a one-shot. Camp the grass, never facecheck open ground." },
       rabbit:{ name:"Rabbit", meta:"Classic flee build", desc:"Full stat dump into mobility — the textbook flee build. You out-speed almost every hunter in the meta, but with zero offensive options your entire kit is 'run'. Kite predators into cover and never get cornered." },
@@ -520,8 +537,10 @@ const T = {
     dawn:"🌅 Amanece el día {n}. Sobreviviste a la noche.", drinkFull:"Bebes hasta saciarte en el lago. 💧",
     starvingWarn:"¡Te mueres de hambre! ❗", thirstWarn:"¡Te mueres de sed! ❗",
     killedBy:"Te mató {type} {emoji}", diedThirst:"Muerto de sed 💧", starved:"Muerto de hambre 🦴",
+    level2:"🌋 NIVEL 2 — Una grieta te lanza al servidor del Cretácico. A los superdepredadores de aquí les dan igual las tier lists. ¡glhf!",
     overText:"GG — te han hecho el outplay. Tu run de {animal} duró {d} {dword}. Récord personal con este build: {best} {dwordp}.",
-    critters:{ mouse:"el ratón", rabbit:"el conejo", deer:"el ciervo", hawk:"el halcón", fox:"el zorro", wolf:"el lobo", rival:"el lobo rival" },
+    critters:{ mouse:"el ratón", rabbit:"el conejo", deer:"el ciervo", hawk:"el halcón", fox:"el zorro", wolf:"el lobo", rival:"el lobo rival",
+      lizard:"el lagarto", dodo:"el dodo", sauro:"el saurópodo joven", trex:"el T. rex", sarco:"el cocodrilo gigante" },
     animals:{
       mouse:{ name:"Ratón", meta:"Pick para modo hardcore", desc:"El build low-cost definitivo: mantenimiento casi nulo y el mejor stat de sigilo del servidor. ¿La pega? 1 punto de HP — literalmente cualquier depredador te mata de un golpe. Campea en la hierba y nunca cruces campo abierto." },
       rabbit:{ name:"Conejo", meta:"El clásico build de huida", desc:"Todos los puntos a movilidad — el build de huida de manual. Corres más que casi cualquier cazador del meta, pero sin opciones ofensivas todo tu kit es 'correr'. Kitea a los depredadores hacia la cobertura y que nunca te acorralen." },
@@ -574,8 +593,10 @@ const T = {
     dawn:"🌅 Sorge il giorno {n}. Sei sopravvissuto alla notte.", drinkFull:"Bevi a sazietà dal lago. 💧",
     starvingWarn:"Stai morendo di fame! ❗", thirstWarn:"Stai morendo di sete! ❗",
     killedBy:"{Type} ti ha ucciso {emoji}", diedThirst:"Morto di sete 💧", starved:"Morto di fame 🦴",
+    level2:"🌋 LIVELLO 2 — Una faglia ti scaraventa sul server del Cretaceo. Ai superpredatori di qui le tier list non interessano. glhf!",
     overText:"GG — sei stato outplayato. La tua run da {animal} è durata {d} {dword}. Record personale con questa build: {best} {dwordp}.",
-    critters:{ mouse:"il topo", rabbit:"il coniglio", deer:"il cervo", hawk:"il falco", fox:"la volpe", wolf:"il lupo", rival:"il lupo rivale" },
+    critters:{ mouse:"il topo", rabbit:"il coniglio", deer:"il cervo", hawk:"il falco", fox:"la volpe", wolf:"il lupo", rival:"il lupo rivale",
+      lizard:"la lucertola", dodo:"il dodo", sauro:"il giovane sauropode", trex:"il T. rex", sarco:"il coccodrillo gigante" },
     animals:{
       mouse:{ name:"Topo", meta:"Pick da hardcore", desc:"La build low-cost per eccellenza: costi di mantenimento quasi nulli e la miglior statistica di stealth del server. Il problema? 1 punto HP — letteralmente ogni predatore ti one-shotta. Campera nell'erba e non attraversare mai terreno aperto." },
       rabbit:{ name:"Coniglio", meta:"La classica build da fuga", desc:"Tutti i punti in mobilità — la build da fuga da manuale. Sei più veloce di quasi ogni cacciatore del meta, ma senza opzioni offensive il tuo intero kit è 'scappa'. Kita i predatori verso la copertura e non farti mai mettere all'angolo." },
@@ -628,8 +649,10 @@ const T = {
     dawn:"🌅 Le jour {n} se lève. Tu as survécu à la nuit.", drinkFull:"Tu te désaltères au lac. 💧",
     starvingWarn:"Tu meurs de faim ! ❗", thirstWarn:"Tu meurs de soif ! ❗",
     killedBy:"Tué par {type} {emoji}", diedThirst:"Mort de soif 💧", starved:"Mort de faim 🦴",
+    level2:"🌋 NIVEAU 2 — Une faille t'envoie sur le serveur du Crétacé. Les superprédateurs d'ici se fichent des tier lists. glhf !",
     overText:"GG — tu t'es fait outplay. Ta run de {animal} a duré {d} {dword}. Record perso sur cette build : {best} {dwordp}.",
-    critters:{ mouse:"la souris", rabbit:"le lapin", deer:"le cerf", hawk:"le faucon", fox:"le renard", wolf:"le loup", rival:"le loup rival" },
+    critters:{ mouse:"la souris", rabbit:"le lapin", deer:"le cerf", hawk:"le faucon", fox:"le renard", wolf:"le loup", rival:"le loup rival",
+      lizard:"le lézard", dodo:"le dodo", sauro:"le jeune sauropode", trex:"le T. rex", sarco:"le crocodile géant" },
     animals:{
       mouse:{ name:"Souris", meta:"Pick mode hardcore", desc:"La build budget par excellence : des coûts d'entretien quasi nuls et la meilleure stat de furtivité du serveur. Le hic ? 1 point de PV — littéralement chaque prédateur te one-shot. Campe dans l'herbe et ne traverse jamais à découvert." },
       rabbit:{ name:"Lapin", meta:"La build fuite classique", desc:"Tous les points en mobilité — la build de fuite du manuel. Tu sèmes presque tous les chasseurs de la méta, mais sans options offensives tout ton kit se résume à « courir ». Kite les prédateurs vers le couvert et ne te laisse jamais acculer." },
@@ -693,7 +716,7 @@ function setLang(code) {
 }
 
 // ------------------------------------------------------------------ state
-let map, player, critters, turn, day, log, over, regrow, lastDeath;
+let map, player, critters, turn, day, level, log, over, regrow, lastDeath;
 
 const rnd = n => Math.floor(Math.random() * n);
 const chance = p => Math.random() < p;
@@ -717,11 +740,20 @@ function makeMap() {
       if (map[y][x] === "land") map[y][x] = type;
     }
   };
-  scatter("tree", 22);
-  scatter("grass", 16);
-  scatter("berry", 8);
-  scatter("rock", 5);
-  scatter("den", 2);
+  if (level === 2) {
+    // open Cretaceous grassland: little tree cover, nowhere to hide
+    scatter("tree", 8);
+    scatter("grass", 26);
+    scatter("berry", 6);
+    scatter("rock", 8);
+    scatter("den", 1);
+  } else {
+    scatter("tree", 22);
+    scatter("grass", 16);
+    scatter("berry", 8);
+    scatter("rock", 5);
+    scatter("den", 2);
+  }
 }
 
 function emptySpot(minDistFromPlayer = 0) {
@@ -745,6 +777,8 @@ function spawnCritter(type, far) {
 
 function startGame(species) {
   const a = ANIMALS[species];
+  level = 1;
+  boardEl.classList.remove("l2");
   makeMap();
   critters = [];
   player = {
@@ -915,6 +949,7 @@ function critterTurn(c) {
   // detection: cover hides you, night helps nocturnal hunters see less far overall
   let sight = isNight() ? 4 : 5;
   if (c.type === "hawk") sight = isNight() ? 2 : 7; // hawks hunt by day
+  if (c.type === "trex") sight = isNight() ? 4 : 7; // hard to miss the horizon from up there
   const hidden = inCover() && chance(effCover());
 
   if (huntsPlayer && d <= sight && !hidden && c.hp > WILDLIFE[c.type].hp * 0.3) {
@@ -1001,10 +1036,16 @@ function endTurn(energyCost, safe = false) {
   if (turn % TURNS_PER_DAY === 0) {
     day++;
     addLog("dawn", { n: day });
-    // world replenishes a bit
-    if (player.preySp.length && chance(0.7)) spawnCritter(pick(player.preySp), true);
-    const predCount = critters.filter(c => WILDLIFE[c.type].hunts >= player.size).length;
-    if (chance(0.35) && player.threatList.length && predCount < 3) spawnCritter(pick(player.threatList), true);
+    if (level === 1 && day >= LEVEL2_DAY) {
+      levelUp();
+    } else {
+      // world replenishes a bit
+      if (player.preySp.length && chance(0.7)) spawnCritter(pick(player.preySp), true);
+      const predCount = critters.filter(c => WILDLIFE[c.type].hunts >= player.size).length;
+      const maxPreds = level === 2 ? 4 : 3;
+      if (chance(level === 2 ? 0.5 : 0.35) && player.threatList.length && predCount < maxPreds)
+        spawnCritter(pick(player.threatList), true);
+    }
   }
 
   // needs
@@ -1050,6 +1091,24 @@ function endTurn(energyCost, safe = false) {
 }
 
 function pick(arr) { return arr[rnd(arr.length)]; }
+
+function levelUp() {
+  level = 2;
+  makeMap();
+  critters = [];
+  regrow = [];
+  const spot = emptySpot();
+  player.x = spot.x; player.y = spot.y;
+  player.preySp = L2_PREY;
+  player.threatList = L2_PREDS.filter(p => WILDLIFE[p].hunts >= player.size);
+  for (const p of ["lizard", "lizard", "dodo", "sauro"]) spawnCritter(p);
+  spawnCritter("trex", true);
+  spawnCritter("trex", true);
+  spawnCritter("sarco", true);
+  player.energy = Math.min(100, player.energy + 30); // a breather before the pack finds you
+  boardEl.classList.add("l2");
+  addLog("level2");
+}
 
 function die(reasonKey, params, face) {
   over = true;
@@ -1118,6 +1177,7 @@ function render() {
   boardEl.classList.toggle("dusk", isDusk());
   document.getElementById("phase").textContent = t(isNight() ? "phaseNight" : "phaseDay");
   document.getElementById("dayNum").textContent = day;
+  document.getElementById("lvlTag").textContent = level === 2 ? " · 🌋 Lv 2" : "";
 
   setMeter("health", player.health, player.maxHealth);
   setMeter("food", player.food, 100);
