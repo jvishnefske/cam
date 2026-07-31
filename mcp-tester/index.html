@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0e1221" />
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="./icons/icon-192.png" />
+  <title>MCP Route Tester</title>
+  <style>
+    :root {
+      --bg: #0e1221; --panel: #171d31; --panel2: #1f2740; --line: #2b3556;
+      --text: #e7ecf5; --muted: #93a0c0; --accent: #5eead4; --accent2: #7aa2ff;
+      --get: #4ade80; --post: #fbbf24; --put: #38bdf8; --del: #f87171;
+      --ok: #4ade80; --warn: #fbbf24; --err: #f87171;
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { margin: 0; background: var(--bg); color: var(--text);
+      font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left); }
+    header { position: sticky; top: 0; z-index: 10; background: rgba(14,18,33,.92);
+      backdrop-filter: blur(8px); border-bottom: 1px solid var(--line);
+      padding: 10px 14px calc(10px); }
+    .titlerow { display: flex; align-items: center; gap: 10px; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); flex: 0 0 auto; }
+    .dot.ok { background: var(--ok); } .dot.err { background: var(--err); } .dot.busy { background: var(--warn); }
+    h1 { font-size: 16px; margin: 0; font-weight: 650; letter-spacing: .2px; }
+    .sub { color: var(--muted); font-size: 12px; }
+    main { max-width: 760px; margin: 0 auto; padding: 12px 14px 96px; }
+    .field { display: block; margin: 8px 0; }
+    label.lbl { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+    input, textarea, select, button { font: inherit; color: var(--text); }
+    input, textarea, select {
+      width: 100%; background: var(--panel2); border: 1px solid var(--line);
+      border-radius: 10px; padding: 10px 12px; outline: none; }
+    input:focus, textarea:focus { border-color: var(--accent2); }
+    textarea { min-height: 84px; resize: vertical; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 13px; }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; }
+    .row > * { flex: 1 1 auto; }
+    button { cursor: pointer; border: 1px solid var(--line); background: var(--panel2);
+      border-radius: 10px; padding: 10px 14px; font-weight: 600; }
+    button.primary { background: linear-gradient(180deg, #2b6f66, #1c4a44);
+      border-color: #2f7d72; color: #eafffb; }
+    button.ghost { background: transparent; }
+    button:active { transform: translateY(1px); }
+    details.card { background: var(--panel); border: 1px solid var(--line);
+      border-radius: 14px; margin: 10px 0; overflow: hidden; }
+    details.card > summary { list-style: none; cursor: pointer; padding: 12px 14px;
+      display: flex; align-items: center; gap: 10px; }
+    details.card > summary::-webkit-details-marker { display: none; }
+    .chip { font-size: 11px; font-weight: 700; letter-spacing: .4px; padding: 3px 7px;
+      border-radius: 6px; color: #06121a; flex: 0 0 auto; }
+    .m-GET { background: var(--get); } .m-POST { background: var(--post); }
+    .m-PUT { background: var(--put); } .m-DELETE { background: var(--del); }
+    .path { font-family: ui-monospace, Menlo, monospace; font-size: 12.5px; word-break: break-all; }
+    .authtag { margin-left: auto; font-size: 10.5px; color: var(--muted); flex: 0 0 auto; padding-left: 8px; }
+    .authtag.admin { color: #fbbf24; } .authtag.login { color: #7aa2ff; } .authtag.open { color: #4ade80; }
+    .body { padding: 0 14px 14px; border-top: 1px solid var(--line); }
+    .grp-title { margin: 22px 4px 4px; font-size: 12px; letter-spacing: .8px;
+      text-transform: uppercase; color: var(--muted); }
+    .grp-title:first-of-type { margin-top: 8px; }
+    .resp { margin-top: 10px; border-radius: 10px; border: 1px solid var(--line);
+      overflow: hidden; }
+    .resp .meta { display: flex; align-items: center; gap: 8px; padding: 8px 10px;
+      background: var(--panel2); font-size: 12.5px; }
+    .status { font-weight: 800; }
+    .s2 { color: var(--ok); } .s3 { color: var(--put); } .s4 { color: var(--warn); } .s5 { color: var(--err); }
+    pre { margin: 0; padding: 10px 12px; overflow: auto; max-height: 320px;
+      font-family: ui-monospace, Menlo, monospace; font-size: 12px; line-height: 1.4;
+      background: #0b0f1c; white-space: pre-wrap; word-break: break-word; }
+    .hdrs { color: var(--muted); font-size: 11.5px; }
+    .hint { color: var(--muted); font-size: 12px; margin: 6px 2px; }
+    .banner { background: #3a2116; border: 1px solid #6b3d20; color: #ffd9a8;
+      padding: 10px 12px; border-radius: 10px; font-size: 12.5px; margin: 8px 0; }
+    .tabbar { position: fixed; bottom: 0; left: 0; right: 0; display: flex;
+      background: rgba(14,18,33,.96); border-top: 1px solid var(--line);
+      padding: 8px 8px calc(8px + env(safe-area-inset-bottom)); gap: 8px; z-index: 10; }
+    .tabbar button { flex: 1; }
+    .hidden { display: none !important; }
+    code.k { color: var(--accent); }
+    a { color: var(--accent2); }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="titlerow">
+      <span id="statusDot" class="dot" title="connection"></span>
+      <div style="flex:1; min-width:0">
+        <h1>MCP Route Tester</h1>
+        <div class="sub" id="targetLabel">no server set</div>
+      </div>
+      <button class="ghost" id="btnPing" style="flex:0 0 auto; padding:8px 12px">Ping</button>
+    </div>
+  </header>
+
+  <main>
+    <section id="view-settings" class="hidden">
+      <div class="banner" id="proxyBanner">
+        Requests are relayed through the local launcher (<code class="k">serve.py</code>) so there are
+        no CORS or mixed-content problems. Set the MCP-Server address below.
+      </div>
+      <div class="field">
+        <label class="lbl" for="baseUrl">MCP-Server base URL (as seen from the launcher machine)</label>
+        <input id="baseUrl" placeholder="http://192.168.1.50:5000" autocomplete="off"
+               autocapitalize="off" spellcheck="false" />
+      </div>
+      <div class="field">
+        <label class="lbl" for="cookie">Session cookie override (optional)</label>
+        <input id="cookie" placeholder="session=eyJ...; remember_token=..." autocomplete="off"
+               autocapitalize="off" spellcheck="false" />
+        <div class="hint">Leave blank to let the proxy pass cookies through automatically after you log in.
+          Paste a captured cookie here to hit <span class="authtag admin">admin</span>/<span class="authtag login">login</span> routes directly.</div>
+      </div>
+      <div class="field">
+        <label class="lbl" for="headers">Extra headers (JSON object, optional)</label>
+        <textarea id="headers" placeholder='{ "X-Debug": "1" }' spellcheck="false"></textarea>
+      </div>
+      <div class="row">
+        <button class="primary" id="btnSave">Save</button>
+        <button class="ghost" id="btnInstallHint">Install app</button>
+      </div>
+      <div class="hint" id="installHint"></div>
+    </section>
+
+    <section id="view-routes">
+      <div id="noServer" class="banner hidden">
+        No server set. Open <b>Settings</b> and enter the MCP-Server base URL.
+      </div>
+      <div id="routeList"></div>
+    </section>
+
+    <section id="view-custom" class="hidden">
+      <p class="grp-title">Custom request</p>
+      <div class="row">
+        <select id="cMethod" style="flex:0 0 110px">
+          <option>GET</option><option>POST</option><option>PUT</option><option>DELETE</option>
+        </select>
+        <input id="cPath" placeholder="/api/users/1" style="flex:1 1 200px" spellcheck="false" autocapitalize="off" />
+      </div>
+      <div class="field">
+        <label class="lbl">Body (sent for POST/PUT)</label>
+        <textarea id="cBody" placeholder='{ "key": "value" }' spellcheck="false"></textarea>
+      </div>
+      <div class="row">
+        <label class="lbl" style="display:flex; align-items:center; gap:8px; flex:0 0 auto">
+          <input type="checkbox" id="cForm" style="width:auto" /> form-encoded
+        </label>
+        <button class="primary" id="cSend">Send</button>
+      </div>
+      <div id="cResp"></div>
+      <p class="grp-title">Recent</p>
+      <div id="history"></div>
+    </section>
+  </main>
+
+  <nav class="tabbar">
+    <button data-view="routes" class="primary">Routes</button>
+    <button data-view="custom">Custom</button>
+    <button data-view="settings">Settings</button>
+  </nav>
+
+  <script src="./app.js"></script>
+</body>
+</html>
